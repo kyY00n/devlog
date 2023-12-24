@@ -29,7 +29,7 @@ export default function Home({ posts }: InferGetStaticPropsType<typeof getStatic
         />
         <div className="min-w-[250]">
           <blockquote className="p-4 mb-5 my-2 border-s-4 border-neutral-300 bg-neutral-50 dark:border-neutral-500 dark:bg-neutral-700">
-            <p className="text-2xl text-neutral-600 dark:text-white font-jejuMyeonjo">
+            <p className="text-xl sm:text-2xl text-neutral-600 dark:text-white font-jejuMyeonjo">
               {'Greatest things never came from comfort zone.'}
             </p>
           </blockquote>
