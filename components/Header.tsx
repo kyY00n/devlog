@@ -3,7 +3,8 @@ import Nav from '@/components/Nav';
 import Head from 'next/head';
 import Link from 'next/link';
 import Image from 'next/image';
-
+import darkIcon from '../app/cat-satisfied-svgrepo-com-dark.svg';
+import lightIcon from '../app/cat-satisfied-svgrepo-com.svg';
 type Theme = null | 'dark' | 'light';
 
 export default function Header() {
@@ -13,7 +14,7 @@ export default function Header() {
   const [theme, setTheme] = useState<Theme>(null);
 
   const handleTheme = () => {
-    const newTheme = theme ?? 'light';
+    const newTheme = theme === 'light' ? 'dark' : 'light';
     setTheme(newTheme);
 
     window.localStorage.setItem('theme', newTheme);
@@ -47,7 +48,7 @@ export default function Header() {
   return (
     <>
       <Head>
-        <title>본인 블로그의 타이틀</title>
+        <title>휘뚜루 마뚜루</title>
       </Head>
       <header
         ref={headerRef}
@@ -56,17 +57,27 @@ export default function Header() {
         <div className="text-black max-w-screen-md h-20 flex flex-nowrap items-center justify-between m-auto px-8">
           <Link href="/">
             {theme === 'dark' ? (
-              <Image src="/images/logoDarkMode.png" alt="profile" width={180} height={30} />
+              <Image src={darkIcon} alt="profile" width={70} />
             ) : (
-              <Image src="/images/logoLightMode.png" alt="profile" width={180} height={30} />
+              <Image src={lightIcon} alt="profile" width={70} />
             )}
           </Link>
           <div className="flex flex-nowrap gap-8 items-center">
             <button type="button" className="m-0 p-0" onClick={handleTheme}>
               {theme === 'dark' ? (
-                <Image src="/images/moon.svg" alt="dark mode" width={30} height={30} />
+                <Image
+                  src={'/images/sun-svgrepo-com-white.svg'}
+                  alt="dark mode"
+                  width={50}
+                  height={50}
+                />
               ) : (
-                <Image src="/images/sun.svg" alt="light mode" width={30} height={30} />
+                <Image
+                  src={'/images/moon3-svgrepo-com.svg'}
+                  alt="light mode"
+                  width={30}
+                  height={30}
+                />
               )}
             </button>
             <button type="button" className="m-0 p-0 sm:hidden" onClick={handleToggle}>

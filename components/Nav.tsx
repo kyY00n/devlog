@@ -8,7 +8,7 @@ interface NavProps {
 
 export default function Nav({ type, onClick }: NavProps) {
   const defaultStyleString =
-    'dark:text-white dark:hover:text-green-500 text-center transition duration-250 hover:scale-125 hover:text-green-500';
+    'dark:text-white dark:hover:text-rose-400 text-center transition duration-250 hover:scale-125 hover:text-rose-400 font-uhbeeZziba';
   return (
     <>
       {nav.map((item) => {
@@ -18,7 +18,9 @@ export default function Nav({ type, onClick }: NavProps) {
             href={link}
             key={title}
             className={
-              type === 'normal' ? defaultStyleString : defaultStyleString + ' text-lg py-4'
+              type === 'normal'
+                ? defaultStyleString + ' text-lg'
+                : defaultStyleString + ' text-xl py-4'
             }
             onClick={
               onClick
