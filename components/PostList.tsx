@@ -13,6 +13,7 @@ export default function PostList({ posts }: RecentPostsProps) {
           date={post.date}
           title={post.title}
           des={post.description}
+          tags={post.tags}
           slug={post._raw.flattenedPath}
           key={post._id}
         />

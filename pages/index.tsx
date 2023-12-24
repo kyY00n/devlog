@@ -4,7 +4,9 @@ import PostList from '@/components/PostList';
 import Image from 'next/image';
 
 export const getStaticProps: GetStaticProps = async () => {
-  const posts = allPosts.sort((a, b) => Number(new Date(b.date)) - Number(new Date(a.date)));
+  const posts = allPosts.sort((a, b) => {
+    return Number(new Date(b.date)) - Number(new Date(a.date)) || a._id.localeCompare(b._id);
+  });
 
   return {
     props: {
