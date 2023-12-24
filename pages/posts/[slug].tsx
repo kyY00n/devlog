@@ -12,8 +12,8 @@ const Post = ({ post }: InferGetStaticPropsType<typeof getStaticProps>) => {
   return (
     <>
       <div className="mt-10 pb-10 border-b-2 mb-10 prose dark:prose-invert">
-        <h1 className="font-extrabold text-2xl">{post.title}</h1>
-        <h2 className="mb-16 font-medium text-sm dark:text-neutral-300">
+        <h1 className="font-extrabold text-4xl -mb-6">{post.title}</h1>
+        <h2 className="mb-14 font-medium text-base dark:text-neutral-300">
           {toDate(post.date)} 작성
         </h2>
         <MDXComponent />

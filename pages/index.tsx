@@ -19,7 +19,7 @@ export default function Home({ posts }: InferGetStaticPropsType<typeof getStatic
       <section className="my-10">
         <h1 className="text-2xl sm:text-4xl font-UhbeeSehyun">{"Hi, I'm Kayoung Yoon."}</h1>
       </section>
-      <section className="my-5 mb-10 flex justify-center gap-8 items-center flex-wrap">
+      <section className="my-5 mb-12 flex justify-center gap-8 items-center flex-wrap">
         <Image
           src={'/images/profile.jpeg'}
           alt="profile"
@@ -33,7 +33,7 @@ export default function Home({ posts }: InferGetStaticPropsType<typeof getStatic
               {'Greatest things never came from comfort zone.'}
             </p>
           </blockquote>
-          <p>안녕하세요. SWE를 꿈꾸는 학생 윤가영입니다.</p>
+          <p>안녕하세요. SWE이자 학생 윤가영입니다.</p>
           <p>웹 BE 기술을 주로 공부했으며, FE / Cloud / Infra 등에 관심이 있습니다.</p>
           <p>
             <a href={'https://agilemanifesto.org/iso/ko/manifesto.html'}>애자일 정신</a>과
@@ -65,8 +65,10 @@ export default function Home({ posts }: InferGetStaticPropsType<typeof getStatic
           </div>
         </div>
       </section>
-      <section className="mt-12 mb-10">
-        <h1 className="font-bold text-2xl sm:text-4xl font-UhbeeSehyun">Recent Posts</h1>
+      <section className="mt-12 mb-5">
+        <h1 className="font-bold text-xl sm:text-2xl font-UhbeeSehyun dark:text-neutral-100">
+          Recent Posts
+        </h1>
       </section>
       <PostList posts={posts} />
     </>
