@@ -5,28 +5,26 @@ import Link from 'next/link';
 import Image from 'next/image';
 import darkIcon from '../app/cat-satisfied-svgrepo-com-dark.svg';
 import lightIcon from '../app/cat-satisfied-svgrepo-com.svg';
-type Theme = null | 'dark' | 'light';
+import { useDarkMode } from '@/hook/useDarkMode';
 
 export default function Header() {
   const headerRef = useRef<HTMLElement>(null);
   const toggleRef = useRef<HTMLDivElement>(null);
   const [onToggle, setOnToggle] = useState<boolean>(false);
-  const [theme, setTheme] = useState<Theme>(null);
-
-  const handleTheme = () => {
-    const newTheme = theme === 'light' ? 'dark' : 'light';
-    setTheme(newTheme);
-
-    window.localStorage.setItem('theme', newTheme);
-    document.body.className = newTheme;
-  };
+  const [theme, handleTheme] = useDarkMode();
 
   const handleScroll = () => {
     if (window.scrollY > 0) {
-      headerRef.current?.classList.add('shadow-[0_5px_7px_0px_#ececec]');
+      headerRef.current?.classList.add(
+        'shadow-[0_5px_7px_0px_#ececec]',
+        'dark:shadow-[0_5px_7px_0px_#333333]',
+      );
       return;
     }
-    headerRef.current?.classList.remove('shadow-[0_5px_7px_0px_#ececec]');
+    headerRef.current?.classList.remove(
+      'shadow-[0_5px_7px_0px_#ececec]',
+      'dark:shadow-[0_5px_7px_0px_#333333]',
+    );
   };
 
   const handleToggle = () => {
@@ -38,13 +36,11 @@ export default function Header() {
   // 스크롤 이벤트와 테마를 적용하는 코드를 넣어준다.
   useEffect(() => {
     window.addEventListener('scroll', handleScroll);
-    setTheme(document.body.className as Theme);
     return () => {
       window.removeEventListener('scroll', handleScroll);
     };
   }, []);
 
-  // 스타일은 자유 변경이 가능하다.
   return (
     <>
       <Head>
