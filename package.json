@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@giscus/react": "^2.4.0",
     "@tailwindcss/typography": "^0.5.10",
     "contentlayer": "^0.3.4",
     "next": "14.0.4",

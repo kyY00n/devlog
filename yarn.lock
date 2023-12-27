@@ -294,6 +294,13 @@
   resolved "https://registry.yarnpkg.com/@fal-works/esbuild-plugin-global-externals/-/esbuild-plugin-global-externals-2.1.2.tgz#c05ed35ad82df8e6ac616c68b92c2282bd083ba4"
   integrity sha512-cEee/Z+I12mZcFJshKcCqC8tuX5hG3s+d+9nZ3LabqKF1vKdF41B92pJVCBggjAGORAeOzyyDDKrZwIkLffeOQ==
 
+"@giscus/react@^2.4.0":
+  version "2.4.0"
+  resolved "https://registry.yarnpkg.com/@giscus/react/-/react-2.4.0.tgz#43fa5fbdcca9d44f532e6c61c46878da3476909c"
+  integrity sha512-y8d8qiZ2sBuaXRcgn/ZWfMlRs9bx26p62BU/HEKQQ+IfHo3B/kglgPjX/IqudwlX+DOlHUl1NvtFo9C8Eqo0eQ==
+  dependencies:
+    giscus "^1.4.0"
+
 "@grpc/grpc-js@^1.7.1":
   version "1.9.13"
   resolved "https://registry.yarnpkg.com/@grpc/grpc-js/-/grpc-js-1.9.13.tgz#ad9b7dbb6089c462469653c809996f13e46aa1cd"
@@ -382,6 +389,18 @@
   dependencies:
     jsbi "^4.3.0"
     tslib "^2.4.1"
+
+"@lit-labs/ssr-dom-shim@^1.1.2":
+  version "1.1.2"
+  resolved "https://registry.yarnpkg.com/@lit-labs/ssr-dom-shim/-/ssr-dom-shim-1.1.2.tgz#d693d972974a354034454ec1317eb6afd0b00312"
+  integrity sha512-jnOD+/+dSrfTWYfSXBXlo5l5f0q1UuJo3tkbMDCYA2lKUYq79jaxqtGEvnRoh049nt1vdo1+45RinipU6FGY2g==
+
+"@lit/reactive-element@^2.0.0":
+  version "2.0.2"
+  resolved "https://registry.yarnpkg.com/@lit/reactive-element/-/reactive-element-2.0.2.tgz#779ae9d265407daaf7737cb892df5ec2a86e22a0"
+  integrity sha512-SVOwLAWUQg3Ji1egtOt1UiFe4zdDpnWHyc5qctSceJ5XIu0Uc76YmGpIjZgx9YJ0XtdW0Jm507sDvjOu+HnB8w==
+  dependencies:
+    "@lit-labs/ssr-dom-shim" "^1.1.2"
 
 "@mdx-js/esbuild@^2.0.0":
   version "2.3.0"
@@ -836,6 +855,11 @@
   version "0.16.8"
   resolved "https://registry.yarnpkg.com/@types/scheduler/-/scheduler-0.16.8.tgz#ce5ace04cfeabe7ef87c0091e50752e36707deff"
   integrity sha512-WZLiwShhwLRmeV6zH+GkbOFT6Z6VklCItrDioxUnv+u4Ll+8vKeFySoFyK/0ctcRpOmwAicELfmys1sDc/Rw+A==
+
+"@types/trusted-types@^2.0.2":
+  version "2.0.7"
+  resolved "https://registry.yarnpkg.com/@types/trusted-types/-/trusted-types-2.0.7.tgz#baccb07a970b91707df3a3e8ba6896c57ead2d11"
+  integrity sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw==
 
 "@types/unist@*", "@types/unist@^3.0.0":
   version "3.0.2"
@@ -2069,6 +2093,13 @@ get-tsconfig@^4.5.0:
   dependencies:
     resolve-pkg-maps "^1.0.0"
 
+giscus@^1.4.0:
+  version "1.4.0"
+  resolved "https://registry.yarnpkg.com/giscus/-/giscus-1.4.0.tgz#89a9c445776e91b59ab47249ae6acdfa01bb6941"
+  integrity sha512-Pll+pcclTx47NcFDw8nuka2Ja85Gc4XWpzSgL0rszOQaMQRQIV8UMR+zP4a+/N3tV2TXc1SZ537kWlsN6EsAaw==
+  dependencies:
+    lit "^3.1.0"
+
 glob-parent@^5.1.2, glob-parent@~5.1.2:
   version "5.1.2"
   resolved "https://registry.yarnpkg.com/glob-parent/-/glob-parent-5.1.2.tgz#869832c58034fe68a4093c17dc15e8340d8401c4"
@@ -2815,6 +2846,31 @@ lines-and-columns@^1.1.6:
   version "1.2.4"
   resolved "https://registry.yarnpkg.com/lines-and-columns/-/lines-and-columns-1.2.4.tgz#eca284f75d2965079309dc0ad9255abb2ebc1632"
   integrity sha512-7ylylesZQ/PV29jhEDl3Ufjo6ZX7gCqJr5F7PKrqc93v7fzSymt1BpwEU8nAUXs8qzzvqhbjhK5QZg6Mt/HkBg==
+
+lit-element@^4.0.0:
+  version "4.0.2"
+  resolved "https://registry.yarnpkg.com/lit-element/-/lit-element-4.0.2.tgz#1a519896d5ab7c7be7a8729f400499e38779c093"
+  integrity sha512-/W6WQZUa5VEXwC7H9tbtDMdSs9aWil3Ou8hU6z2cOKWbsm/tXPAcsoaHVEtrDo0zcOIE5GF6QgU55tlGL2Nihg==
+  dependencies:
+    "@lit-labs/ssr-dom-shim" "^1.1.2"
+    "@lit/reactive-element" "^2.0.0"
+    lit-html "^3.1.0"
+
+lit-html@^3.1.0:
+  version "3.1.0"
+  resolved "https://registry.yarnpkg.com/lit-html/-/lit-html-3.1.0.tgz#a7b93dd682073f2e2029656f4e9cd91e8034c196"
+  integrity sha512-FwAjq3iNsaO6SOZXEIpeROlJLUlrbyMkn4iuv4f4u1H40Jw8wkeR/OUXZUHUoiYabGk8Y4Y0F/rgq+R4MrOLmA==
+  dependencies:
+    "@types/trusted-types" "^2.0.2"
+
+lit@^3.1.0:
+  version "3.1.0"
+  resolved "https://registry.yarnpkg.com/lit/-/lit-3.1.0.tgz#76429b85dc1f5169fed499a0f7e89e2e619010c9"
+  integrity sha512-rzo/hmUqX8zmOdamDAeydfjsGXbbdtAFqMhmocnh2j9aDYqbu0fjXygjCa0T99Od9VQ/2itwaGrjZz/ZELVl7w==
+  dependencies:
+    "@lit/reactive-element" "^2.0.0"
+    lit-element "^4.0.0"
+    lit-html "^3.1.0"
 
 locate-path@^6.0.0:
   version "6.0.0"
