@@ -1,17 +1,17 @@
 import Link from 'next/link';
-import { toTag } from '@/pages/posts/[slug]';
+import { toTag } from '@/pages/posts/[id]';
 
 interface BlogPostProps {
+  id: number;
   date: string;
   title: string;
   des: string;
   tags?: string[];
-  slug: string;
 }
 
-const BlogPost = ({ date, title, des, tags, slug }: BlogPostProps) => {
+const BlogPost = ({ id, date, title, des, tags }: BlogPostProps) => {
   return (
-    <Link href={`/posts/${slug}`} passHref className="w-full my-5" key={date + title}>
+    <Link href={`/posts/${id}`} passHref className="w-full my-5">
       <div className="font-medium text-xs transition text-gray-500 dark:text-gray-300">{date}</div>
       <div className="font-extrabold text-xl sm:text-2xl mt-2 transition hover:text-rose-400">
         {title}

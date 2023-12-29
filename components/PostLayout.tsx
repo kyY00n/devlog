@@ -1,5 +1,5 @@
 import Comment from '@/components/Comment';
-import { toDate, toTag } from '@/pages/posts/[slug]';
+import { toDate, toTag } from '@/pages/posts/[id]';
 import { useMDXComponent } from 'next-contentlayer/hooks';
 
 interface LayoutProps {
