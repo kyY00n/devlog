@@ -7,7 +7,8 @@ export default function Comment() {
   const theme = useRecoilValue(themeState);
 
   useEffect(() => {
-    if (!ref.current || ref.current.hasChildNodes()) return;
+    const currentRef = ref.current;
+    if (!currentRef || currentRef.hasChildNodes()) return;
 
     const scriptElem = document.createElement('script');
     scriptElem.src = 'https://giscus.app/client.js';
@@ -18,7 +19,7 @@ export default function Comment() {
     scriptElem.setAttribute('data-repo-id', 'R_kgDOK9Ry2g');
     scriptElem.setAttribute('data-category', 'General');
     scriptElem.setAttribute('data-category-id', 'DIC_kwDOK9Ry2s4Cb-Y0');
-    scriptElem.setAttribute('data-mapping', 'pathname');
+    scriptElem.setAttribute('data-mapping', 'title');
     scriptElem.setAttribute('data-strict', '0');
     scriptElem.setAttribute('data-reactions-enabled', '1');
     scriptElem.setAttribute('data-emit-metadata', '0');
@@ -35,15 +36,15 @@ export default function Comment() {
       );
     };
 
-    ref.current.appendChild(scriptElem);
+    currentRef.appendChild(scriptElem);
 
     const iframe = document.querySelector<HTMLIFrameElement>('iframe.giscus-frame');
     iframe?.contentWindow?.postMessage({ giscus: { setConfig: { theme } } }, 'https://giscus.app');
 
     // 컴포넌트 언마운트 시 스크립트 제거를 위한 클린업 함수
     return () => {
-      if (ref.current) {
-        ref.current.removeChild(scriptElem);
+      if (currentRef) {
+        currentRef.removeChild(scriptElem);
       }
     };
   }, []);

@@ -43,9 +43,6 @@ export default function Header() {
 
   return (
     <>
-      <Head>
-        <title>휘뚜루 마뚜루</title>
-      </Head>
       <header
         ref={headerRef}
         className="sticky top-0 left-0 w-full z-10 h-20 font-mono transition duration-500 bg-white dark:bg-[#111111]"

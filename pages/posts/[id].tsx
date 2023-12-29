@@ -6,10 +6,14 @@ import {
   InferGetStaticPropsType,
 } from 'next';
 import PostLayout from '@/components/PostLayout';
+import Head from 'next/head';
 
 const Post = ({ post }: InferGetStaticPropsType<typeof getStaticProps>) => {
   return (
     <>
+      <Head>
+        <title>{`${post.title}`}</title>
+      </Head>
       <PostLayout post={post} />
     </>
   );
