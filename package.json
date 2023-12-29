@@ -12,6 +12,7 @@
     "@giscus/react": "^2.4.0",
     "@tailwindcss/typography": "^0.5.10",
     "contentlayer": "^0.3.4",
+    "crypto": "^1.0.1",
     "next": "14.0.4",
     "next-contentlayer": "^0.3.4",
     "react": "^18",
