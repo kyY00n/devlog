@@ -23,7 +23,7 @@ export const toTag = (tag: string) => {
   return (
     <>
       <span
-        className="bg-red-100 text-red-800 text-xs font-medium me-2 px-2.5 py-0.5 rounded-full dark:bg-red-900 dark:text-red-300"
+        className="font-uhbeeZziba bg-red-100 text-red-800 text-s font-light me-2 px-2.5 py-0.5 rounded-full dark:bg-red-900 dark:text-red-200"
         key={tag}
       >
         {tag}

@@ -1,6 +1,6 @@
 const nav: { title: string; link: string }[] = [
-  { title: 'Home', link: '/' },
   { title: 'Posts', link: '/posts' },
+  { title: 'Profile', link: '/me' },
 ];
 
 export default nav;
