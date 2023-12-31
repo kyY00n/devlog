@@ -28,7 +28,7 @@ export default function PostLayout(props: LayoutProps) {
           </div>
           {/*<div className="max-w-screen-md flex flex-col px-10 m-auto">{props.children}</div>*/}
         </main>
-        <Comment />
+        {/*<Comment />*/}
       </div>
     </>
   );
