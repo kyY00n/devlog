@@ -37,10 +37,10 @@ export default function TocSide({ tableOfContents }: TocSideProps) {
   const [headingTops, setHeadingTops] = useState<null | IHeadingTops[]>([]);
 
   const settingHeadingTops = useCallback(() => {
-    const scrollTop = getScrollTop();
+    const scrollTop = getScrollTop(); // 200 빼줌
     const headingTops = tableOfContents.map(({ slug }) => {
       const el = document.getElementById(slug);
-      const top = el ? el.getBoundingClientRect().top + scrollTop : 0;
+      const top = el ? el.getBoundingClientRect().top + scrollTop - 200 : 0;
       return { slug, top };
     });
     setHeadingTops(headingTops);
@@ -90,6 +90,16 @@ export default function TocSide({ tableOfContents }: TocSideProps) {
     };
   }, [headingTops]);
 
+  const handleTocClick = (event: any, tocSlug: string) => {
+    event.preventDefault(); // 기본 스크롤 동작 중단
+    const headerHeight = 150;
+    const element = document.getElementById(tocSlug);
+    if (element) {
+      const elementTop = element.getBoundingClientRect().top + window.scrollY - headerHeight;
+      window.scrollTo({ top: elementTop, behavior: 'smooth' });
+    }
+  };
+
   return (
     <>
       {tableOfContents.length ? (
@@ -107,7 +117,9 @@ export default function TocSide({ tableOfContents }: TocSideProps) {
                   : 'mt-0 scale-100'
               }`}
             >
-              <Link href={`#${toc.slug}`}>{toc.text}</Link>
+              <Link href={`#${toc.slug}`} onClick={(e) => handleTocClick(e, toc.slug)}>
+                {toc.text}
+              </Link>
             </li>
           ))}
         </ul>
