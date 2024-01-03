@@ -2,6 +2,7 @@ import { toDate, toTag } from '@/pages/posts/[id]';
 import { useMDXComponent } from 'next-contentlayer/hooks';
 import { parseHeadersForTOC } from '@/libs/utils/markdown';
 import TocSide from '@/components/TocSide';
+import Comment from '@/components/Comment';
 
 interface LayoutProps {
   // children: ReactNode;
@@ -34,7 +35,7 @@ export default function PostLayout(props: LayoutProps) {
           </div>
         </div>
       </main>
-      {/*<Comment />*/}
+      <Comment />
     </>
   );
 }
