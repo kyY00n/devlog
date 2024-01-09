@@ -1,6 +1,6 @@
 import { allPosts } from '@/.contentlayer/generated';
 import { GetStaticProps, InferGetStaticPropsType } from 'next';
-import PostList from '@/components/PostList';
+import PostList from '@/components/post/PostList';
 export const getStaticProps: GetStaticProps = async () => {
   const posts = allPosts.sort((a, b) => {
     return Number(new Date(b.date)) - Number(new Date(a.date)) || a._id.localeCompare(b._id);

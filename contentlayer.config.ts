@@ -11,7 +11,7 @@ const options = {
 export const Post = defineDocumentType(() => ({
   name: 'Post',
   contentType: 'mdx',
-  filePathPattern: `**/*.mdx`,
+  filePathPattern: `**/posts/*.mdx`,
   fields: {
     id: { type: 'number', required: true },
     title: { type: 'string', required: true },
@@ -23,9 +23,25 @@ export const Post = defineDocumentType(() => ({
     },
   },
 }));
+
+export const Note = defineDocumentType(() => ({
+  name: 'Note',
+  contentType: 'mdx',
+  filePathPattern: `**/notes/*.mdx`,
+  fields: {
+    id: { type: 'number', required: true },
+    title: { type: 'string', required: true },
+    date: { type: 'string', required: true },
+    tags: {
+      type: 'list',
+      of: {type: 'string'},
+    }
+  },
+}))
+
 export default makeSource({
-  contentDirPath: 'posts',
-  documentTypes: [Post],
+  contentDirPath: 'documents',
+  documentTypes: [Post, Note],
   mdx: {
     rehypePlugins: [rehypeSlug, [rehypePrettyCode, options]] as Pluggable[], // https://stackoverflow.com/questions/77344966/next-js13-contentlayer-syntax-highlight-error-issues
   },

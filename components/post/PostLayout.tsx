@@ -1,8 +1,9 @@
-import { toDate, toTag } from '@/pages/posts/[id]';
+import { toDate } from '@/pages/posts/[id]';
 import { useMDXComponent } from 'next-contentlayer/hooks';
 import { parseHeadersForTOC } from '@/libs/utils/markdown';
 import TocSide from '@/components/TocSide';
 import Comment from '@/components/Comment';
+import { Tag } from '@/components/Tag';
 
 interface LayoutProps {
   // children: ReactNode;
@@ -24,7 +25,7 @@ export default function PostLayout(props: LayoutProps) {
               <h2 className="font-medium text-base dark:text-neutral-300">
                 {toDate(post.date)} 작성
               </h2>
-              <div className="mb-12">{post.tags?.map((tag: string) => toTag(tag))}</div>
+              <div className="mb-12">{post.tags?.map((tag: string) => Tag(tag))}</div>
               <MDXComponent />
             </div>
           </div>

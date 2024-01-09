@@ -1,4 +1,4 @@
-import { allPosts } from '@/.contentlayer/generated';
+import { allNotes } from '@/.contentlayer/generated';
 import {
   GetStaticPaths,
   GetStaticProps,
@@ -8,13 +8,13 @@ import {
 import PostLayout from '@/components/post/PostLayout';
 import Head from 'next/head';
 
-const Post = ({ post }: InferGetStaticPropsType<typeof getStaticProps>) => {
+const Note = ({ note }: InferGetStaticPropsType<typeof getStaticProps>) => {
   return (
     <>
       <Head>
-        <title>{`${post.title}`}</title>
+        <title>{`${note.title}`}</title>
       </Head>
-      <PostLayout post={post} />
+      <PostLayout post={note} />
     </>
   );
 };
@@ -29,18 +29,18 @@ export const toDate = (date: string) => {
 
 export const getStaticPaths: GetStaticPaths = async () => {
   return {
-    paths: allPosts.map((p) => ({ params: { id: String(p.id) } })),
+    paths: allNotes.map((p) => ({ params: { id: String(p.id) } })),
     fallback: false,
   };
 };
 
 export const getStaticProps: GetStaticProps = async ({ params }: GetStaticPropsContext) => {
-  const post = allPosts.find((p) => String(p.id) === params?.id);
+  const note = allNotes.find((p) => String(p.id) === params?.id);
   return {
     props: {
-      post,
+      note,
     },
   };
 };
 
-export default Post;
+export default Note;
