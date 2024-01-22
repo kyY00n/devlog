@@ -1,10 +1,152 @@
 ---
 id: 1
-date: 2024-01-09
-title: 오늘 배운 것
+date: 2024-01-20
+title: Big O
 tags:
-  - iteration의 한계
-  - iteration의 대안
+  - CTCI 6th edition
 ---
 
-# 이거 잘 되려나 모르겠다!
+기억에 남는 곳 책갈피
+
+## p.41 Drop the Constants
+
+> 어떤 것이 더 빠릅니까?
+
+예제 1
+```java
+int min = Integer.MIN_VALUE;
+int max = Integer.MAX_VALUE;
+for (int x: array) {
+    if (x < min) min = x;
+    if (x > max) max = x;
+}
+```
+
+예제 2
+```java
+int min = Integer.MIN_VALUE;
+int max = Integer.MAX_VALUE;
+for (int x: array) {
+    if (x < min) min = x;
+}
+for (int x: array) {
+    if (x > max) max = x;
+}
+```
+예제 1은 루프가 1개이고 예제 2는 루프가 2개이다. 하지만 루프 안에서 두개의 라인이 실행된다.
+이런식으로 비교를 하겠지.
+
+근데 우리가 이렇게 instruction, 연산의 갯수를 세려고 한다면, 우리는 어쎔블리 레벨로 가야한다. (진짜 연산은 어쎔블리 레벨에서 일어나니까)
+또한 multiplication은 addition 보다 더 많은 instruction이 필요하다는 것도 고려할 줄 알아야한다.
+또한 컴파일러가 어떻게 최적화를 하는지, 다른 디테일도 모두 알아야한다.
+
+하지만 이건 너무 복잡하다. 그러니 이런 방식으로 생각하지 말자.
+Big O 는 런타임이 어떻게 확장되는지를 표현하기 위한 방법인 것이다.
+
+그렇기 때문에 우리는 단순히 받아들일 필요가 있다.
+
+Big O는 rate of increase 이며, O(N) 이 항상 O(N^2)보다 항상 나은 걸 알기 위함인 것이다.
+
+## p.43 Amortized Time
+
+Java ArrayList 의 insertion은 내부 array에 값을 추가하기만 하면 되는데
+만약 내부의 array의 자리가 꽉 찬다면, 새로운 array를 만들어서 복사해야한다.
+
+이 때 새로운 array를 원래 사이즈의 2배로 만들어 기존 array의 요소를 복사한다.
+이렇게 미리 연산을 해두면 대부분의 연산의 time complexity가 줄어든다.
+대부분의 연산에서 array를 만들고 복사할 일이 없고, O(1)만에 끝난다.
+이 때 우리는 Amortized time이 O(1)이라고 할 수 있다.
+
+### 구분하기
+
+최초 길이가 1인 array 로 만들어진 ArrayList 에 N개의 요소를 추가한다고 하자.
+그렇다면 N번의 insertions이 일어난다. 또한 array가 가득찰 때마다 copy 연산이 이뤄진다.
+
+1 + 2 + 4 + 8 + ... + N 개 요소의 copy 연산
+= N + N/2 + N/4 + N/8 + ... + 1
+
+-> N이 커질수록 2N 에 수렴
+
+따라서 N번의 insertions은 O(2N) 시간이 걸린다.
+하지만 각 insertion의 Amortized time은 O(1)이다.
+
+> Amortized time을 알고리즘 수업 때 배웠었는데, ArrayList를 직접 구현해보고 보는 거랑 다른 것 같다. 특히, 2배씩 늘이는 패러다임은
+ArrayList 뿐 아니라 Dynamic Pagination에서도 쓴 다는 것을 알고 나니 더 머리에 각인되었다.
+
+## 연습문제
+
+연습문제 중 메모
+
+### Example 4
+
+```java
+void printUnorderedPairs(int[] arrayA, int[] arrayB) {
+    for (int i = 0; i < arrayA.length; i++) {
+        for (int j = 0; j < arrayB.length; j++) {
+            /* O(1) work */
+        }
+    }
+}
+```
+arrayA의 각 요소마다 arrayB의 사이즈 = b번의 반복이 일어난다.
+a = arrayA.length, b = arrayB.length 라고 하면 이 예제의 시간복잡도는 O(ab) 이다.
+
+만약 이 예제의 시간복잡도를 O(N^2) 이라고 말했다면, then remember your mistake for the future.
+이 예제는 두개의 다른 input을 가지고 있기 때문에 O(N^2)이 아니다. This is an extremely common mistake.
+
+### Example 8
+
+Array of strings의 각 string을 정렬하고, full array를 정렬하는 알고리즘이 있다. 이 알고리즘의 runtime을 구해보자.Amortized
+
+다수의 지원자들이 다음과 같은 접근을 한다:
+각 string을 O(N logN)로 정렬하고, 이걸 each string 마다 반복하므로 O(N* N log N) 이다.
+그 후에 이 array를 정렬해야하므로, 추가로 O(N log N)의 작업을 해야한다. 그러므로 총 runtime은 O(N^2 log N + N log N)이다.
+
+이것은 완전히 틀렸다. 여러분은 오류를 찾았는가?
+
+문제는 우리가 N을 두개의 다른 방식으로 사용했다는 것이다. 첫번째로 우리는 N을 string의 length로 설정했다. (그것도, 어떤 string인지 명시도안함)
+그리고 두번째는 array의 길이다.
+
+우리가 인터뷰를 할 때는 N을 변수로 사용하지 않거나, N이 나타내는 것이 모호하지 않도록 사용하도록 해서 이를 방지할 수 있다.
+
+자, 우리는 새로운 terms 를 사용해보자: use names that are logical
+
+ - `s`를 가장 긴 string의 길이라고 하자
+ - `a`를 array의 길이라고 하자.
+
+자 그리고 이렇게 해볼 수 있다.
+
+- 각 string를 정렬하는 것은 O(s log s) 이다.
+- 모든 string에 대해 실행해야하므로 O(s * s log s) 이다.
+- 이제 array of strings 를 정렬해야한다. 아마 여러분은 이렇게 답하고 싶을지 모른다. "array의 길이가 a 이므로 O(a log a)의 시간이 걸린다!"
+대다수의 지원자들이 이렇게 말하기도한다. 하지만, 여기서 여러분은 **이 예제가 `string`끼리 비교한다는 것을 고려할 수 있어야한다. 각 string comparison은 O(s)의 시간이 걸린다.**
+그리고 O(a log a)번 비교가 일어나므로 array of strings 를 정렬하는 것은 O(a*s log s) 시간이 걸린다.
+
+각 string을 정렬하는 부분과 array를 정렬하는 부분을 더하면 `O(a*s(log a + log s))` 임을 알 수 있다.
+
+## additional exercise 오답
+
+#### VL 11
+
+The following code prints all strings of length k where the characters are in sorted order.
+It does this by generating all strings of length k and then checking if each is sorted.
+What is its runtime?
+
+import Gist from "react-gist";
+
+
+<div>
+    <Gist id={"b2c45d7d2bd8919f80b1df366afb9a6a"}/>
+</div>
+
+이 메서드는 재귀가 있어서 살짝 헷갈렸지만 이렇게 나눠볼 수 있었따.
+base case가 아닌 경우 상수시간만 걸리기 때문에 else 부분의 시간복잡도는 무시했다.
+
+그렇다면 `base case의 시간복잡도 * base case 동작 횟수`가 runtime이 될거라 생각했다.<br/>
+(틀렸다면 알려주세요, 감사합니다 *\*^^\**)
+
+다음 사진에서는 base case 호출의 횟수를 구하고 시간복잡도를 구해 runtime을 구한다.
+
+![240123-012456](/notes/1-til-240109/IMG_1153A7EBF1E3-1.jpeg)
+
+
