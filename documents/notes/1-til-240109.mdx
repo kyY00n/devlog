@@ -109,10 +109,7 @@ Array of strings의 각 string을 정렬하고, full array를 정렬하는 알�
 
 우리가 인터뷰를 할 때는 N을 변수로 사용하지 않거나, N이 나타내는 것이 모호하지 않도록 사용하도록 해서 이를 방지할 수 있다.
 
----
----
-
-새로운 terms 를 사용해보자: use names that are logical
+자, 우리는 새로운 terms 를 사용해보자: use names that are logical
 
  - `s`를 가장 긴 string의 길이라고 하자
  - `a`를 array의 길이라고 하자.
@@ -127,9 +124,7 @@ Array of strings의 각 string을 정렬하고, full array를 정렬하는 알�
 
 각 string을 정렬하는 부분과 array를 정렬하는 부분을 더하면 `O(a*s(log a + log s))` 임을 알 수 있다.
 
-### additional exercise
-
-오답노트
+## additional exercise 오답
 
 #### VL 11
 
@@ -137,44 +132,21 @@ The following code prints all strings of length k where the characters are in so
 It does this by generating all strings of length k and then checking if each is sorted.
 What is its runtime?
 
-```java
-int numChars = 26;
-
-void printSortedStrings(int remaining) {
-    printSortedStrings(remaining, "");
-}
-
-void printSortedStrings(int remaining, String prefix) {
-    if (remainging == 0) {
-        if (isInOrder(prefix)) {
-            System.out.println(prefix);
-        } else {
-            for (int i = 0; i < numChars; i++) {
-                char c = ithLetter(i);
-                printSortedStrings(remaining - 1, prefix + c);
-            }
-        }
-    }
-}
-
-boolean isInOrder(String s) {
-    for (int i = 1; i < s.length(); i++) {
-        int prev = ithLetter(s.charAt(i - 1));
-        int curr = ithLetter(s.charAt(i));
-        if (prev > curr) {
-            return false;
-        }
-    }
-    return true;
-}
-
-char ithLetter(int i) {
-    return (char) ((int) 'a') + i);
-}
-```
-
-wip
+import Gist from "react-gist";
 
 
+<div>
+    <Gist id={"b2c45d7d2bd8919f80b1df366afb9a6a"}/>
+</div>
+
+이 메서드는 재귀가 있어서 살짝 헷갈렸지만 이렇게 나눠볼 수 있었따.
+base case가 아닌 경우 상수시간만 걸리기 때문에 else 부분의 시간복잡도는 무시했다.
+
+그렇다면 `base case의 시간복잡도 * base case 동작 횟수`가 runtime이 될거라 생각했다.<br/>
+(틀렸다면 알려주세요, 감사합니다 *\*^^\**)
+
+다음 사진에서는 base case 호출의 횟수를 구하고 시간복잡도를 구해 runtime을 구한다.
+
+![240123-012456](/notes/1-til-240109/IMG_1153A7EBF1E3-1.jpeg)
 
 
