@@ -8,13 +8,14 @@ interface RecentPostsProps {
 export default function NoteList({ notes }: RecentPostsProps) {
   return (
     <div className="flex flex-col">
-      {notes.map((post: Note) => {
+      {notes.map((note: Note) => {
         return (
           <NotePreview
-            id={post.id}
-            date={post.date}
-            title={post.title}
+            id={note.id}
+            date={note.date}
+            title={note.title}
             key={crypto.randomUUID()}
+            tags={note.tags}
           />
         );
       })}

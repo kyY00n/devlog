@@ -1,5 +1,5 @@
 import { Post } from '@/.contentlayer/generated';
-import PostPrivew from '@/components/post/PostPreview';
+import PostPreview from '@/components/post/PostPreview';
 
 interface RecentPostsProps {
   posts: Post[];
@@ -10,7 +10,7 @@ export default function PostList({ posts }: RecentPostsProps) {
     <div className="flex flex-col">
       {posts.map((post: Post) => {
         return (
-          <PostPrivew
+          <PostPreview
             id={post.id}
             date={post.date}
             title={post.title}
