@@ -1,0 +1,136 @@
+---
+id: 8
+title: spring-boot-gradle plugin의 executable packaging
+date: 2023-08-13
+description: 개발자는 이 플러그인 덕분에 jar, war 아카이브를 패키징 할 수 있고, Spring Boot 애플리케이션을 실행할 수 있다.
+tags:
+  - bootJar
+  - Gradle
+  - Spring Boot
+---
+# spring-boot-gradle plugin
+
+Spring Boot 그래들 플러그인은 스프링팀에서 만든다고한다. 그리고 이 개발한 플러그인을 gradle plugin 포털에 배포하는 것이다.
+
+우리는 이 플러그인 덕분에 실행 가능한 jar, war 아카이브를 패키징 할 수 있고, Spring Boot 애플리케이션을 실행할 수 있다. 또한 이 플러그인은 `spring-boot-dependencies`가 제공하는 디팬던시 관리법을 사용한다.
+
+Gradle 7.x (7.5 or later) 또는 8.x 버전을 필요로 한다.
+
+## 시작
+
+스프링부트 사용자라면 익숙하겠지만, 우리가 spring 이니셜라이저로 gradle 프로젝트를 생성했을 때, 스크립트 맨위에서 이 블록을 볼 수 있다.
+
+```java
+plugins {
+	id 'org.springframework.boot' version '3.1.5'
+}
+```
+
+원래 플러그인이란 gradle task의 묶음이다. 이 플러그인을 설치함으로써 우리는 다음 태스크를 사용할 수 있게 된다.
+
+- `bootJar`
+- `bootWar`
+- `bootBuildImage`
+
+## 디팬던시 관리는 다른 플러그인과 함께.
+
+gradle로 spring boot를 이용하는 사람들 대부분이 `[io.spring.dependency-management](https://github.com/spring-gradle-plugins/dependency-management-plugin)` 를 함께 사용한다. 다음과 같은 스크립트를 본적 많을 것이다.
+
+```groovy
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.1.1'
+    id 'io.spring.dependency-management' version '1.1.0' // !
+    id 'jacoco'
+}
+```
+
+dependency 블록에서, spring boot 스타터를 선언할 때 버전을 명시해주지 않아도 되는 이유는, 바로 이 dependency-management 플러그인 덕분이다.
+
+```groovy
+dependencies {
+    implementation('org.springframework.boot:spring-boot-starter-web')
+    implementation('org.springframework.boot:spring-boot-starter-data-jpa')
+
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'io.micrometer:micrometer-registry-prometheus'
+}
+```
+
+starter들은 spring boot 프로젝트의 버전을 상속받아 사용하고, 포함되지 않는 의존성들은 spring boot BOM에 명시된 버전을 사용한다.
+
+이 링크가 SpringBoot에서 관리하는 디팬던시와 그 버전의 목록이다.
+
+[Dependency Versions](https://docs.spring.io/spring-boot/docs/current/reference/html/dependency-versions.html)
+
+위 문서에 들어가면, 위에서 스타터가 아닌 의존성이었던 `micrometer-registry-prometheus` 가 존재하는 것을 확인해볼 수 있다.
+
+![240217-154311](/posts/8-gradle-executable-packaging/240217-154311.png)
+
+## Executable Archives (Jar/War)
+
+다시, `org.springframework.boot` 로 돌아오자.
+
+이 플러그인은 우리가 정말 많이 봐왔던 Task, `bootJar` 를 포함하고 있다. 즉, 패키징을 하는 태스크를 가진다는 것.
+
+`bootJar` 는 `bootWar` 과 함께 스프링부트 애플리케이션의 모든 dependency를 포함하는 executable 아카이브, 즉 jar/war 파일을 패키징한다.
+
+<aside>
+    💡 jar/war 파일은 `java -jar` 로 실행할 수 있었다.
+
+</aside>
+
+### Jar 파일 패키징
+
+Java 플러그인에도 jar 패키징을 할 수 있는 태스크가 있지만, Spring boot 애플리케이션을 패키징하기 위해서는 추가적인 기능이 필요하다. 그리고 spring boot plugin에서는 `bootJar` 라는 태스크를 제공한다.
+
+spring boot 플러그인은 gradle의 java 플러그인의 태스크 `assemble`과 상호작용한다. spring boot 플러그인과 java 플러그인이 활성화되면, java 플러그인의 `jar` 태스크가 `BootJar` 인스턴스로 생성된다.
+
+```java
+import org.gradle.api.tasks.bundling.Jar;
+
+public abstract class BootJar extends Jar implements BootArchive
+```
+
+출처: [spring-boot-gradle-plugin 프로젝트 코드](https://github.com/spring-projects/spring-boot/blob/main/spring-boot-project/spring-boot-tools/spring-boot-gradle-plugin/src/main/java/org/springframework/boot/gradle/tasks/bundling/BootJar.java)
+
+그리고 자동으로 `assemble` / `build`태스크가 `bootJar` 에 의존하도록 설정되기 때문에 assemble 또는 build를 실행하면 bootJar 태스크가 선행된다.
+
+- Java 플러그인만으로는 안되는 이유 (spring boot 플러그인이 패키징 시 하는 일)
+
+Java 플러그인의 **`jar`** 태스크가 생성하는 JAR 파일은 Spring Boot의 **`bootJar`** 태스크가 생성하는 실행 가능한 JAR 파일과는 다릅니다. **`jar`** 태스크로 생성된 JAR 파일은 단독으로 실행되지 않으며, 외부 라이브러리에 대한 의존성을 자체적으로 포함하지 않습니다. 반면, **`bootJar`** 태스크는 Spring Boot의 **임베디드 서버와 모든 의존성을 포함하는 실행 가능한 JAR 파일을 생성한다.**
+
+[GPT와의 대화](https://chat.openai.com/share/8a4c79c0-69ea-491d-a0c3-61d5e9d443d3)
+
+
+### 🌟 `bootJar` 태스크가 포함하는 파일의 위치
+
+bootJar 태스크는 spring boot 프로젝트의 클래스 파일과 리소스를 함께 패키징한다.
+
+- 클래스 파일: source root에서 컴파일된 클래스 파일
+→ 기본 소스 루트는 src/main/java. 컴파일 위치인 `build/classes/java/main` 에 위치한 클래스 파일들
+- 리소스 파일: resource root에서 옮겨진 리소스 파일
+
+→ 기본 리소스 루트가 src/main/resources 이므로 `build/resources/main` 에 위치한다.
+
+
+### War 파일 패키징
+
+War 패키징은 Jar와 굉장히 비슷하다.
+
+java 플러그인이 아닌 war 플러그인이 활성화되면 `war`태스크가 `BootWar` 인스턴스로 생성된다. 마찬가지로 자동으로 `assemble` 과 `build` 태스크가 `bootWar` 에 의존하도록 설정된다.
+
+## Plain Archives
+
+기본적으로 bootJar 또는 bootWar 작업을 구성할 때 jar 또는 war 작업은 아카이브 분류기의 규칙으로 `plain`을 사용하도록 구성됩니다. 이렇게 하면 bootJar와 jar 또는 bootWar와 war의 출력 위치가 서로 다르므로 실행 가능한 아카이브와 일반 아카이브를 동시에 빌드할 수 있습니다.
+
+## [OCI](https://github.com/opencontainers/image-spec) 이미지 패키징
+
+spring-boot 플러그인은 jar/war 파일로부터 OCI 이미지를 생성할 수 있다. 이미지는 `bootBuildImage` 태스크를 통해 만들어질 수 있다.
+
+`bootBuildImage` 태스크는 spring-boot 플러그인 설정시 java 또는 war 플러그인이 있으면 자동으로 생성된다. 이때 생성되는 객체는 `BootBuildImage` 의 인스턴스다.
+
+# Reference
+
+> https://docs.spring.io/spring-boot/docs/current/gradle-plugin/reference/htmlsingle/ 의 1~5번
+>
