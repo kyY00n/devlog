@@ -1,0 +1,287 @@
+---
+id: 7
+title: Localstack으로 aws 환경 테스트해보기
+date: 2023-08-13
+description: 테스트를 선호하는 개발자라면 이런 방식을 사용해볼 수 있다
+tags:
+  - Localstack
+  - AWS
+  - S3
+---
+
+# 통합테스트
+
+## 간단한 정의
+
+통합테스트는 하나의 모듈이 다른 협력 모듈과 원활이 동작하는지를 검증하기 위한 테스트입니다. 보통 코드로써의 테스트를 많이 이야기하지만, 본문에서는 수동으로 하는 테스트도 포함해서 이야기하겠습니다.
+
+## 의의
+
+테스트 작성이 중요한 이유는, 보통 구현한 기능이 제대로 동작하는 지 스스로 피드백받을 수 있기 때문인데요.
+
+기능/모듈 자체를 테스트하기 위한 단위테스트와 달리, 통합테스트는 전체적인 흐름과 모듈 간 상호 작용에서 발생하는 부작용등을 찾는 모의 실험과 비슷합니다.
+
+# AWS 환경에서의 통합테스트
+
+많은 기업과 팀에서는 애플리케이션 배포와 운영을 AWS 환경에서 하고 있습니다. AWS 환경에서는 사내 여러 서비스간에 통신이 이뤄질 수도 있고, 심지어 AWS 내의 리소스와 통신하기도 합니다.
+
+AWS 환경에서 서비스를 운영한다면 한번쯤 이런 불편함을 겪으셨을 겁니다.
+
+- 모의 테스트는 로컬 환경에서는 통과하지만 클라우드에서는 실패한다.
+- 클라우드 테스트는 로컬 개발 환경을 사용하는 로컬 테스트와 달리 추가 서비스 비용이 발생한다.
+  - 실제 실행코드가 CI/CD 파이프라인의 일부로 사용되면 안된다
+
+## 로컬에서 통합테스트할 수 없을까?
+
+바로, 로컬에서는 AWS환경에 접근하는 것이 어렵기 때문입니다. 보통의 경우, 사용자에 일반 컴퓨터에서 aws 리소스에 접근하기 위해서는 access token, secret key를 발급 받아야하지만 이는 보안상 좋지 않은 선택이고, 이는 aws에서도 권장하지 않고 있습니다.
+
+때문에 실습을 목적으로 하는 환경이 아니라면, 보안을 위해 로컬에서의 권한은 만들어 두지 않습니다. 따라서 대부분의 경우 로컬에서는 직접 aws에 접근하기 어려워 지는 것입니다.
+
+![240217-153058](/posts/7-aws-localstack/240217-153058.png)
+
+하지만, 애플리케이션을 실행하는 인프라를 컨테이너 기술로 최대한 동일하게 만들어 로컬에서도 테스트하게 할 수 있습니다! 이런식으로 애플리케이션을 실행하기위한 컴퓨팅, 볼륨과같은 인프라 서비스는 로컬에서 최대한 동일한 환경을 만들어 냄으로써 문제를 해결할 수 있게 됩니다.
+
+## AWS 서버리스 서비스와의 상호작용
+
+하지만 문제는 s3/lambda/sns 등과 같은 별도의 서버리스 서비스입니다. 인프라를 구성할 때는, 서버리스 서비스들도 함께 사용하는 경우가 많습니다.
+
+![240217-153117](/posts/7-aws-localstack/240217-153117.png)
+
+저에게 익숙한 s3도 서버리스 서비스 중 하나인데요. 파일이 저장되는 서버를 관리하지 않고 조회/저장/변경 요청을 통해 파일을 관리할 수 있습니다.
+
+만약 애플리케이션 서버가 s3에 사진 저장 api를 호출한다면 이를 어떻게 테스트할수 있을까요?
+**s3는 아키텍처 구성 요소가 aws 클라우드에만 존재할 수 있는데 말이죠.**
+
+만약 사진 저장 api 를 호출하는 로직에 오류가 있는지 테스트 하기 위해서는 클라우드 환경에 애플리케이션을 올리기 위해 검증되지 않은 코드를 배포해야합니다. 만약 문제가 있다면 롤백을 하고 다시 테스트를 해야하죠.
+
+사전에 이런 상호작용까지 테스트해볼 수는 없을까요?
+
+# Localstack
+
+localstack은 이 문제를 해결하기 위한 오픈소스 프레임워크 입니다. localstack의 가장 큰 특징은 클라우드 환경을 로컬에서 직접 구성하고, 테스트할 수 있다는 것입니다.
+
+> LocalStack은 노트북이나 CI 환경의 단일 컨테이너에서 실행되는 **클라우드 서비스 에뮬레이터**입니다. LocalStack을 사용하면 원격 클라우드 제공자에 연결하지 않고도 로컬 컴퓨터에서 AWS 애플리케이션이나 Lambda를 완전히 실행할 수 있습니다! …
+
+- Localstack 홈페이지
+>
+
+localstack은 다음과 같이 aws api를 테스트 할 수 있는 cli를 제공합니다.
+
+```bash
+# localstack s3의 모든 버킷을 조회합니다.
+awslocal s3 ls
+```
+
+## 활용하는 방법들
+
+- localstack cli
+- docker
+- docker-compose
+
+도커를 활용하면, 테스트 코드 내에서도 testcontainer를 사용해서 aws 환경을 통합테스트 하게 될 수 있습니다.
+
+# 간단한 실습: localstack s3에 파일 업로드 후, 버킷에서 파일 확인하기
+
+사실 앞서 말씀드린 여러가지 도전할만한 예시들이 있습니다.
+
+- lamdba에서
+- dd
+
+그러나 저는 아직 이렇게 여러 서비스간 상호작용을 구현해본 적이 없었기 때문에, 지금 당장 제가 테스트 해보고 싶었던 기능인 s3 파일업로드를 localstack을 이용하여 테스트해보기로 결정했습니다. ㅎㅎ
+
+## 방법 1. docker 컨테이너를 별도로 띄우고 테스트 해보기
+
+저는 docker-compose를 사용했는데요 (이유는 좋은 예시가 있었기 때문입니다.. :D)
+
+### docker-compose.yml
+
+작성법이나 파라미터들은 [여기](https://docs.localstack.cloud/getting-started/installation/#starting-localstack-with-docker-compose)에서 더 자세히 확인할 수 있습니다!
+저는 제가 쓴 파라미터만 주석으로 설명을 달아볼게요.
+
+```sql
+version: "3.8"
+
+services:
+  localstack:
+    container_name: s3_localstack
+    image: localstack/localstack
+    ports:
+      - "127.0.0.1:4566:4566"            # LocalStack 게이트웨이
+      - "127.0.0.1:4510-4559:4510-4559"  # external services port range
+    environment:
+      - SERVICES=s3 # 사용하는 aws 서비스를 나열
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    volumes:
+      - "./volume:/var/lib/localstack"
+      - "./localstack-init/init.sh:/etc/localstack/init/ready.d/init-aws.sh" # 초기화 스크립트 위치를 지정 - 뒤에 더 설명
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "./localstack-init/cors-config.json:/opt/code/localstack/cors-config.json" # optional: cors 설정 파일 취리를 설정
+```
+
+### 초기화 훅 (Initialization Hook)
+
+localstack은 컨테이너가 실행될 때 설정한 훅이 실행되게 할 수 있는데요, 다음과같은 네 개 단계에 적용이 가능합니다.
+
+- BOOT: 컨테이너가 실행 중이지만 로컬스택 런타임이 시작되지 않았을 때
+- START: 파이썬 프로세스가 실행 중이고 LocalStack 런타임이 시작 중일 때
+- READY: LocalStack이 요청을 처리할 준비가 되었을 때
+- SHUTDOWN: LocalStack이 종료 중일 때
+
+제가 실행시킨 훅은 다음과 같습니다. 로컬에서 docker-compose가 있는 디렉터리의 하위 디렉터리 `localstack-init`를 생성해서 그 안에 생성해두었습니다. `./localstack-init/init.sh`
+
+```bash
+#!/bin/sh
+echo "Init localstack"
+
+# rosie-bucket 이라는 이름의 버킷을 생성합니다
+awslocal s3 mb s3://rosie-bucket
+
+# optional: rosie-bucket의 cors 설정을 해줍니다
+awslocal s3api put-bucket-cors --bucket rosie-bucket --cors-configuration file://$(pwd)/cors-config.json
+```
+
+저는 버킷을 생성하는 작업이 필요했기 때문에 READY 단계에서 실행할 수 있도록 해야했습니다.
+
+다음과 같이 컨테이너 볼륨의 ready.d 에 스크립트가 위치하도록 해주었습니다. 그리고 ready.d 하위 스크립트의 이름은 중요하지 않습니다! ^^
+
+![240217-153143](/posts/7-aws-localstack/240217-153143.png)
+
+docker-compose.yml
+
+- 참고: hook by custom shell scripts in localstack
+
+You can hook into each of these lifecycle phases using custom shell or Python scripts. Each lifecycle phase has its own directory in `/etc/localstack/init`. You can mount individual files, stage directories, or the entire init directory from your host into the container.
+
+`/etc
+└── localstack
+└── init
+├── boot.d           <-- executed in the container before localstack starts
+├── ready.d          <-- executed when localstack becomes ready
+├── shutdown.d       <-- executed when localstack shuts down
+└── start.d          <-- executed when localstack starts up`
+
+
+### 컨테이너 실행
+
+docker-comose.yml이 있는 곳에서 `docker compose up` 을 실행해줬습니다.
+
+![240217-153158](/posts/7-aws-localstack/240217-153158.png)
+
+초기화 스크립트까지 성공적으로 실행된다면 저렇게 s3.createBucket의 응답이 200으로 로깅이 되어있습니다.
+
+### 테스트 작성
+
+이렇게 컨테이너를 띄우고나서, 테스트에 활용해보겠습니다.
+
+```java
+@BeforeEach
+public void setUp() {
+    s3Client = S3Client.builder()
+            .endpointOverride(URI.create("http://localhost:4566"))
+            .forcePathStyle(true)
+            .build();
+
+    s3Uploader = new S3Uploader(s3Client);
+}
+
+@Test
+void 사진을_업로드하면_조회할_수_있다() throws IOException {
+    //given
+    String 키_이름 = "keyname";
+    String 업로드_요청_파일 = "test file";
+    MultipartFile multipartFile = new MockMultipartFile(키_이름, "originalname", "image/png",
+            업로드_요청_파일.getBytes());
+
+    //when
+    s3Uploader.uploadFile(키_이름, multipartFile);
+
+    //then
+    String 업로드된_파일 = new String(s3Client.getObject(builder -> builder.bucket("rosie-bucket").key(키_이름))
+            .readAllBytes());
+    Assertions.assertThat(업로드된_파일).isEqualTo(업로드_요청_파일);
+}
+```
+
+테스트를 돌려보면, 통과하고요
+
+![240217-153220](/posts/7-aws-localstack/240217-153220.png)
+
+그리고 실행중인 컨테이너에는 다음처럼 PutObject 요청이 성공한 것을 확인할 수 있습니다.
+
+![240217-153235](/posts/7-aws-localstack/240217-153235.png)
+
+## 방법2. testcontainer 사용하기
+
+첫번째 방법처럼 컨테이너를 직접 띄우고 사용할 수도 있지만 테스트 코드 상에서 컨테이너를 띄울 수 있는 도구가 있습니다. (testcontainer는 localstack에 국한한 도구는 아닙니다.ㅎㅎ)
+
+testcontainer는 테스트 별로 독립적으로 컨테이너를 띄울 수 있고 자동화가 가능한 도구예요. localstack은 활용 방법으로 testcontainer를 지원하고 있습니다.
+
+[Testcontainers](https://docs.localstack.cloud/user-guide/integrations/testcontainers/)
+
+우리가 다음과 같이 셋업 코드를 작성해주면, 따로 컨테이너를 띄워주지 않아도 돼요.
+
+```java
+@Testcontainers
+class S3UploaderIntegrationTest {
+
+    DockerImageName localstackImage = DockerImageName.parse("localstack/localstack:latest-arm64");
+
+    @Container
+    public LocalStackContainer localstack = new LocalStackContainer(localstackImage)
+            .withServices(S3);
+
+    // 테스트..
+}
+```
+
+만약 많은 테스트가 있다면 그들을 모두 격리할 수 있다는 점이 정말 큰 장점인 것 같았어요.
+다만 단점도 존재했어요.
+
+### testcontainer localstack의 단점
+
+- 설정 코드가 조금 더 길고 까다롭다
+- 이미지가 없을 경우 pull 에 많은 시간이 걸린다.
+
+![240217-153251](/posts/7-aws-localstack/240217-153251.png)
+
+테스트를 격리 시켰을 때, 우리는 CI에 테스트를 활용할 수 있겠다는 희망을 가지게 되는데..
+현재 제가 속한 팀에서는 CI 스크립트가 리모트에서 항상 새로운 머신(github host)에서 동작하기 때문에 도입을하는 것이 망설여졌습니다.
+
+- 그렇다고 하면, **인프라 구성을 테스트에서 해야한다.**
+물론 제가 볼륨 구성 방법을 발견하지 못한 것일 수 있지만 -
+docker를 cli 직접 띄웠을 때와 달리, 컨테이너 볼륨을 설정해주지 못해서 초기화 훅을 지정해줄 수 없었어요. 따라서 버킷 생성하는 코드를 s3Client로 실행해야했습니다.
+
+  ```java
+  @Test
+  void 사진을_업로드하면_조회할_수_있다() throws IOException {
+      //given
+      s3Client.createBucket(builder -> builder.bucket("rosie-bucket"));
+     //...
+  }
+    ```
+
+s3만을 사용하는 테스트가 아니라면, 필요한 인프라 구성을 모두 코드로 해줘야합니다.
+
+
+이런 단점들로 인해, 저는 앞으로 localstack을 활용한다면 docker-compose로 직접 띄워 테스트를 작성할 것 같습니다.
+
+- 또한 github actions를 ci 툴로 이용한다면,
+워크플로에서 테스트 job을 실행하는 동안 localstack 을 직접 docker-compose로 띄워 사용할 수 있습니다.
+
+참고: https://docs.github.com/ko/actions/using-containerized-services/about-service-containers
+
+
+지금까지 localstack을 처음 사용해본 입장에서 써본 소개글이었습니다.
+예제 소스코드는 깃헙에서도 확인할 수 있어요.
+
+https://github.com/kyY00n/s3-putobject-localstack
+
+읽어주셔서 감사합니당 ~
+
+# 참고자료
+
+https://docs.aws.amazon.com/prescriptive-guidance/latest/serverless-application-testing/introduction.html → 정말정말 좋은 글입니당. 제 글은 안읽으셔도 좋습니다.
+
+[https://tech.inflab.com/202202-integration-test-with-localstack](https://tech.inflab.com/202202-integration-test-with-localstack/#%EC%B4%88%EA%B8%B0%ED%99%94-%EC%8A%A4%ED%81%AC%EB%A6%BD%ED%8A%B8-%EC%9E%91%EC%84%B1) → 정말정말 좋은 글입니당. 초기화 스크립트 부분만 제가 쓴 방법으로 바꾸시면 됩니다!
+
+https://github.com/testcontainers/testcontainers-java/blob/main/docs/modules/localstack.md → testcontainer 와 aws sdk v2를 함께 쓰는 법을 참고했습니다
