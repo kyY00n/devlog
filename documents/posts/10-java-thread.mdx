@@ -1,0 +1,120 @@
+---
+id: 10
+title: 자바의 Thread
+date: 2023-09-06
+description: Thread와 관련 개념들
+tags:
+  - Thread
+  - synchronized
+  - ThreadPool
+---
+
+## Thread
+
+자바에서 직접 스레드를 만드는 방법 두 가지
+
+- Thread 클래스를 상속해서 만들기
+  - 예제 코드에서는 이런식으로 Thread를 상속한 클래스를 정의해줬다.
+
+Thread에 정의되어있는 run() 메서드를 재정의해주면 된다.
+
+```java
+class ExtendedThread extands Thread {
+  @Override
+  public void run() {
+     // implement
+  }
+}
+```
+
+그런데, **사실 Thread는 Runnable의 구현체이다**.
+
+![240217-162207](/posts/10-java-thread/240217-162207.png)
+
+- Runnable 인터페이스를 사용하기
+
+Thread를 사용할 때 Thread를 직접 상속해도 되지만
+Thread 는 Runnable의 구현체라 원하는 Runnable 구현체를 만들기만해도 스레드를 사용할 수 있도록 기능을 제공한다.
+
+```java
+@Test
+void testRunnableThread() throws InterruptedException {
+    Thread thread = new Thread(() -> log.info("hello thread"));
+    thread.start();
+    thread.join();
+}
+```
+
+
+## Synchronization
+
+키워드 사용해서 동기화 적용하기
+
+- 메서드에 적용할 수 있음
+
+```java
+@Test
+void testSynchronized() throws InterruptedException {
+    var executorService = Executors.newFixedThreadPool(3); //스레드풀 만들어서
+    var synchronizedMethods = new SynchronizedMethods();
+
+		//1000번의 실행을 스레드 풀에게 시킨다.
+    IntStream.range(0, 1000)
+            .forEach(count -> executorService.submit(**synchronizedMethods::calculate**));
+
+		//executorService의 모든 스레드가 종료될때까지 대기
+		executorService.awaitTermination(500, TimeUnit.MILLISECONDS);
+
+    assertThat(synchronizedMethods.getSum()).isEqualTo(1000);
+}
+```
+
+## ThreadPool
+
+자바에서는 `Executors` 클래스의 정적팩토리메서드를 통해 스레드 풀을 만드는 API를 제공한다.
+
+### newFixedThreadFool(int n)
+
+n개의 스레드를 가진 스레드풀을 생성한다.
+
+### newCachedThreadPool()
+
+> Creates a thread pool that **creates new threads as needed**, but will reuse previously constructed threads when they are available. These pools will typically improve the performance of programs that execute **many short-lived asynchronous tasks**. Calls to execute will **reuse previously constructed threads if available.** If no existing thread is available, a new thread will be created and added to the pool. Threads that **have not been used for sixty seconds are terminated and removed from the cache.** Thus, a pool that remains idle for long enough will not consume any resources. Note that pools with similar properties but different details (for example, timeout parameters) may be created using ThreadPoolExecutor constructors.
+>
+
+스레드를 캐시하는 풀같은 개념이다.
+
+**초기화 시에는 스레드 개수가 0개로 설정된다.**
+필요할 때 스레드를 생성하여 사용하고, 사용이 끝난 스레드를 풀에 저장해둔다.
+60초 안에 다시 사용할 일이 생기면 해당 스레드를 재사용한다.
+
+하지만 사용 후 60초가 지나면 스레드는 종료되고, 캐시(풀)에서 삭제된다.
+
+```java
+@Test
+void testNewCachedThreadPool() {
+    final var executor = (ThreadPoolExecutor) Executors.newCachedThreadPool();
+    executor.submit(logAfterASecond("hello cached thread pools"));
+    executor.submit(logAfterASecond("hello cached thread pools"));
+    executor.submit(logAfterASecond("hello cached thread pools"));
+
+    final int expectedPoolSize = 3;
+    final int expectedQueueSize = 0;
+
+    assertThat(expectedPoolSize).isEqualTo(executor.getPoolSize());
+    assertThat(expectedQueueSize).isEqualTo(executor.getQueue().size());
+}
+```
+
+## 스레드는 실행순서가 정해져있지 않다
+
+thread.start()
+
+thread.join()
+
+https://defacto-standard.tistory.com/1191 → 전처리/후처리 예시 너무 좋음!
+
+start()순서는 상관없다.
+그러나 다른 스레드의 join()을 호출된 뒤 start()가 호출되는 스레드는 반드시 이후에 수행된다.
+
+그래서 순서를 보장하고 싶으면 start()로 조정하는게 아니라, 먼저 실행이 끝나야 하는 스레드를 join하고 start하도록 한다.
