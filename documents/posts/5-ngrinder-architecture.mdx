@@ -1,0 +1,48 @@
+---
+id: 5
+title: nGrinder 구조
+date: 2023-09-18
+description: nGrinder 사용전 학습
+tags:
+  - nGrinder
+  - Load testing
+---
+
+설치 및 사용법은 좋은 블로그가 있어서 첨부
+
+[[nGrinder] 설치와 사용법 정리](https://velog.io/@hellonayeon/nGrinder-install-and-how-to-use-memo#설치)
+
+# nGrinder
+
+https://github.com/naver/ngrinder
+
+> 네이버에서 만든 부하테스트 플랫폼. 다음은 nGrinder 전체 아키텍처에 관한 문서를 일부 번역한 것이다.
+>
+
+nGrinder는 수많은 머신들을 통해 테스트 스크립트를 실행하기 위한 애플리케이션이다.
+
+nGrinder의 내부 엔진은 Grinder를 베이스로 한다. nGrinder는 Grinder의 콘솔을 Controller로, Grinder의 agent를 자체 agent로 감쌌다. 그리고 몇몇 기능을 multiple 동시성 테스트가 가능하도록 심화했다.
+
+## Architecture
+
+nGrinder는 다음 두 개의 주요 컴포넌트로 이뤄져있다.
+
+1. Controller: 컨트롤러는 성능 테스팅을 위한 web 인터페이스를 제공한다. 테스트 과정을 배치하고 통계를 보여준다. 또한 사용자가 스크립트를 생성, 수정할 수 있게 만들어준다.
+2. Agent - agent 모드로 실행될 때 타깃 머신에 부하를 줄 프로세스와 스레드들을 실행하는 주체다. monitor 모드로 실행될 때는 CPU/memory와 같은 시스템의 성능을 모니터링한다.
+
+![240217-152438](/posts/5-ngrinder-architecture/240217-152438.png)
+
+agents 들을 실행하기전에, 그들은 컨트롤러에 연결시도를 한다. 연결이 되면, Agents는 AgentContollerServer 컴포넌트에 붙어있게되는 것이다. AgentContorllerServer는 마치 agent 풀 같은 것인데, 현재 실행되고 있는 agent pool 을 관리한다. 유저가 성능 테스트를 시작하면, 새로운 에이전트 배치 콘솔이 생성되고, 에이전트 컨트롤러 서버에서 필요한 에이전트 수를 넘겨받는다.
+해당 콘솔은 테스트 스크립트와 테스트 리소스를 여러 대의 에이전트들에게 전송하고, 테스트가 끝날 때까지 테스트의 흐름을 컨트롤한다.
+
+테스트가 끝나고 나면 사용됐던 에이전트들은 AgentControllerServer로 반납되는데, 이 에이전트들은 추후에 다른 테스트들에 사용된다. 마찬가지로, 테스트에 사용됐던 콘솔도 콘솔매니저로 반납된다.
+
+## Difference from Grinder
+
+nGrinder와 Grinder의 가장 큰 차이는 다음과 같다. nGrinder는 여러 개의 콘솔 인스턴스와 에이전트를 컨트롤러 내에서 유지한다. 각각의 콘솔은 서로 독립적이고 동시에 실행될 수 있다. 여러개의 에이전트가 컴포넌트에 붙어 있을 수 있고, 언제든지 요청을 받으면 할당이 될 수 있다. nGrinder는 에이전트 머신의 utilization을 최대로 끌어올리기 위해 개발되었다고 보면 된다.
+
+## nGrinder의 uniqueness
+
+Performance Center와 같은 Well-known 부하 테스트 툴은 agent의 가용성을 보장하기 위해 테스트 예약 기능을 가지고 있다. 하지만 해당 Reservation은 agent utilization 문제의 원인에 접근하다. 우리는 사람들이 agents를 precaution으로 예약하는 경향이 있다는 것을 발견했다. 사실 그들은 테스트를 하고 있지 않을 때도 말이다. 우리의 경험으로는, 결과적으로 agent 평균 CPU utilization이 10% 미만이었다.
+
+이러한 이유로, nGrinder는 reservation을 사용하는 대신에, **mulltiple test와 dynamic agent allocation을 가능하게 만들었다.** 그렇게 함으로써, agent들이 실제로 테스트가 작동될 때에만 동적으로 테스트 수행에 할당되게 한다. 이것이 nGrinder가 다른 competitors 사이에서 유니크한 솔루션이 될 수 있게하는 특성이다. 비교적 작은 수의 agents로는, 다수의 사용자들이 multiple test를 동시에 실행할 수 있다. 동시에 실행 가능한 테스트의 수는 free agents의 수에 의존하는 것이다.
