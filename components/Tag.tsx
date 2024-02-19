@@ -1,5 +1,7 @@
-const colors = ['amber', 'pink', 'rose', 'red', 'orange']
-const bullshit: {[key: typeof colors[number]]: {bg:string; text: string; darkGb: string; darkText: string;}} = {
+const colors = ['amber', 'pink', 'rose', 'red', 'orange'];
+const bullshit: {
+  [key: (typeof colors)[number]]: { bg: string; text: string; darkGb: string; darkText: string };
+} = {
   amber: {
     bg: 'bg-amber-100',
     text: 'text-amber-800',
@@ -30,19 +32,19 @@ const bullshit: {[key: typeof colors[number]]: {bg:string; text: string; darkGb:
     darkGb: 'dark:bg-orange-900',
     darkText: 'dark:text-orange-200',
   },
-}
+};
 
 const colorHash = (name: string) => {
-  const color = colors[(name.length + 1) % colors.length]
-  return bullshit[color]
-}
+  const color = colors[(name.length + 1) % colors.length];
+  return bullshit[color];
+};
 
-export const Tag = (tag: string) => {
-  const { bg, text, darkGb, darkText} = colorHash(tag)
+export const Tag = (tag: string, key: string) => {
+  const { bg, text, darkGb, darkText } = colorHash(tag);
   return (
     <>
       <span
-        className={`font-uhbeeZziba ${bg} ${text} text-s font-light me-2 px-2.5 pt-0.5 rounded-full ${darkGb} ${darkText}`}
+        className={`flex-shrink-0 font-uhbeeZziba ${bg} ${text} text-s font-light me-2 px-2.5 pt-0.5 rounded-full ${darkGb} ${darkText}`}
         key={tag}
       >
         {tag}
