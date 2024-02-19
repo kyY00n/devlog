@@ -1,0 +1,60 @@
+---
+id: 8
+date: 2024-02-11
+title: 2의 제곱수 (WIP)
+tags:
+- System & Session
+- static & dynamic
+---
+
+https://leetcode.com/problems/power-of-two/?envType=daily-question&envId=2024-02-19
+
+```java
+class Solution {
+    public boolean isPowerOfTwo(int n) {
+        if (n <= 0) { // 양수가 아닌 경우 2의 제곱수가 아니다.
+            return false;
+        }
+        int comp = 1; // 나는 1부터 2^31 까지의 2의 제곱수를 n과 비교했다.
+        for(int i = 0; i < 32; i++) {
+            if (n == comp) { // 동일한 경우 true
+                return true;
+            }
+            comp <<= 1;
+        }
+        // 1부터 2^31까지 동일하지 않으면 false
+        return false;
+    }
+}
+```
+
+2의 제곱수라는 말을 보고 비트연산을 사용하면 조금은 빠르지 않을까하고 이렇게 접근했었다.
+결과적으로 나는 최대 32번 걸리는 알고리즘을 만들었는데.. 이것보다 더 빠르게 한 사람이 엄청 많았다.
+
+![240220-005235](/posts/8-power-of-two/240220-005235.png)
+
+---
+
+gpt에게 도움을 요청했다.
+
+https://chat.openai.com/share/73445499-70fa-4e8d-934f-af9cbad3e33b
+
+
+![240220-005615](/posts/8-power-of-two/240220-005615.png)
+
+
+이런 방법이 있다니. 그렇다. 10000_2 - 1 = 1111_2 이다.
+0이 얼마나 되든 같은 형태를 띠겠지. 그리고 10000_2 와 1111_2를 AND 연산을 하면 0이 된다.
+**비트가 모두 다르면 0이 된다**는 것은 알아두면 계속 써먹을 수 있을 것 같다!!
+언제나 진리의 0이니까..
+
+근데 내보니까 이것도 틀렸다.
+
+```java
+public class Solution {
+    public boolean isPowerOfTwo(int n) {
+        if (n <= 0) return false;
+        return (1 << 30) % n == 0;
+    }
+}
+```
