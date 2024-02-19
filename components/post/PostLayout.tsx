@@ -25,7 +25,7 @@ export default function PostLayout(props: LayoutProps) {
               <h2 className="font-medium text-base dark:text-neutral-300">
                 {toDate(post.date)} 작성
               </h2>
-              <div className="mb-12">{post.tags?.map((tag: string) => Tag(tag))}</div>
+              <div className="mb-12">{post.tags?.map((tag: string) => Tag(tag, tag))}</div>
               <MDXComponent />
             </div>
           </div>
