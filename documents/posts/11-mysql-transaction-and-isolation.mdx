@@ -131,14 +131,9 @@ select @autocommit;
 
 ## 4단계 격리 수준
 
-| 읽기 부정합 / 격리 레벨 | read uncommitted | read committed | repeatable read | serializable |
-| ----------------------- | ---------------- | -------------- | --------------- | ------------- |
-| dirty read              | 발생             | 없음           | 없음            | 없음          |
-| non-repeatable read     | 발생             | 발생           | 없음            | 없음          |
-| phantom read            | 발생             | 발생           | 발생            | 없음          |
-
-
 - InnoDB 기본 격리수준은 REPEATABLE READ 이다.
+
+![240219-234419](/posts/11-mysql-transaction-and-isolation/240219-234419.png)
 
 ## Read Uncommited
 
