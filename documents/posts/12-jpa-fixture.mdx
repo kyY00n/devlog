@@ -1,0 +1,216 @@
+---
+id: 12
+title: 생각없이 Test Fixture를 JPA 엔티티로 마구 가져다 쓰기
+date: 2023-07-16
+description: JPA 미션 구경하다가 엔티티를 Fixture로 빼놓을 때의 문제점을 찾아본 크루들을 보니 난 별 생각없이 사용했던 터라 학습을 좀 했다.
+tags:
+  - JPA
+  - Test Fixture
+---
+
+JPA 미션 구경하다가 엔티티를 Fixture로 빼놓을 때의 문제점을 찾아본 크루들을 보니 난 별 생각없이 사용했던 터라 학습을 좀 했다.
+
+QnA 미션에서 실험을 해봤다. 일단 설명부터
+
+## 엔티티 설명
+
+- Question 엔티티는 User 엔티티와 다대일 관계이다.
+- 데이터베이스에서 question 테이블은 user 테이블의 기본키를 외래키로 가진다.
+
+```java
+public class Question {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false)
+    private String title;
+
+    @Lob
+    private String contents;
+
+    @ManyToOne
+    private User writer;
+
+    @Column(nullable = false)
+    private boolean deleted = false;
+
+    // ...
+}
+```
+
+## 테스트 - 문제 상황
+
+- Question 엔티티 생성과 저장을 테스트하려고 한다.
+- Question 생성에 필요한 User 객체를 아이디가 없게 한 뒤, **픽스처로 만들어 둘 것이다.**
+- 매 테스트마다 User 픽스처를 db에 삽입하고 Question 생성에 사용한다.
+
+
+```java
+@DataJpaTest
+class QuestionTest {
+
+        @Test
+        void 질문을_생성한다() {
+            //given
+            userRepository.save(UserTest.JAVAJIGI);
+
+            //when
+            Question Q1 = new Question("title1", "contents1").writeBy(UserTest.JAVAJIGI);
+            questionRepository.save(Q1);
+
+            //then
+            Assertions.assertThat(Q1.getId())
+                    .isNotNull();
+        }
+
+        @Test
+        void 질문을_생성한다_2() {
+            //given
+            userRepository.save(UserTest.JAVAJIGI);
+
+            //when
+            Question Q2 = new Question("title2", "contents2").writeBy(UserTest.JAVAJIGI);
+            questionRepository.save(Q2);
+
+            //then
+            Assertions.assertThat(Q2.getId())
+                    .isNotNull();
+        }
+    }
+}
+```
+
+하지만 위 테스트를 실행하면 하나의 테스트는 실패한다.
+
+![](https://velog.velcdn.com/images/kyy00n/post/a4f98ce2-2386-4e04-a205-6570c5efe537/image.png)
+
+왜일까?
+
+예외가 발생했다. 자세히 보자.
+
+```
+Caused by: org.h2.jdbc.JdbcSQLIntegrityConstraintViolationException: Referential integrity constraint violation: "FKMW3K1IIH6CJOA4854RB38WIFW: PUBLIC.QUESTION FOREIGN KEY(WRITER_ID) REFERENCES PUBLIC.USER(ID) (1)";
+SQL statement:
+insert into question (id, contents, deleted, title, writer_id) values (null, ?, ?, ?, ?) [23506-200]
+
+```
+
+`JdbcSQLIntegrityConstraintViolationException` 는 foreign key 제약 조건에 대한 예외이다.
+question의 user id 가 문제가 된것같다.
+
+question 테이블에 삽입하는 insert 문을 찾아보자.
+나는 다음 설정으로 sql 문의 placeholder의 값을 확인해볼 수 있었다.
+
+![application.properties](https://velog.velcdn.com/images/kyy00n/post/e6e260b9-6d32-4342-91dc-995293aec5ab/image.png)
+
+
+확인해보니, place holder의 writer_id 자리에는 1이 들어가고 있었다.
+![](https://velog.velcdn.com/images/kyy00n/post/a691aa6e-80a5-439a-abc9-9dcdf2c90141/image.png)
+
+이렇게되면 예외는 당연하다.
+왜냐면 아이디가 1인 user는 첫번째 테스트에서 삽입되었다가 롤백으로 지워진 row의 아이디이기 때문이다.
+
+두번째 테스트에서는 새로 삽입한 user의 아이디를 사용했어야할텐데, 왜 여전히 1을 사용하고 있었을까?
+
+## 두 테스트에서 save 전후로 아이디 확인하기
+
+말 그대로, 첫번째와 두번째 테스트에서 user를 save하는 전 후로 user의 아이디를 확인한다.
+
+```java
+System.out.println("첫번째 save 전 user 엔티티 아이디 = " + UserTest.JAVAJIGI.getId());
+userRepository.save(UserTest.JAVAJIGI);
+System.out.println("첫번째 save 후 user 엔티티 아이디 = " + UserTest.JAVAJIGI.getId());
+
+// ..
+
+System.out.println("두번째 save 전 user 엔티티 아이디 = " + UserTest.JAVAJIGI.getId());
+userRepository.save(UserTest.JAVAJIGI);
+System.out.println("두번째 save 후 user 엔티티 아이디 = " + UserTest.JAVAJIGI.getId());
+```
+
+![](https://velog.velcdn.com/images/kyy00n/post/6f14de4c-86d3-4320-92dc-5a3327197528/image.png)
+
+![](https://velog.velcdn.com/images/kyy00n/post/cc3d1d06-f568-4602-8941-0ff3ab0a0954/image.png)
+
+
+트랜잭션이 일어나도 객체의 아이디는 null로 되돌아가지 않는다. (당연하징)
+
+## save() 시 id가 null 또는 0이 아닌 경우
+
+그래서 달라지는게 있다면 여기다. save() 의 동작과정에서 차이가 나타난다.
+
+```java
+@Transactional
+@Override
+public <S extends T> S save(S entity) {
+
+	Assert.notNull(entity, "Entity must not be null.");
+
+	if (entityInformation.isNew(entity)) {
+		em.persist(entity);
+		return entity;
+	} else {
+		return em.merge(entity);
+	}
+}
+```
+
+isNew 인 경우에만 persist를 하고 있다.
+[isNew의 구현](https://github.com/spring-projects/spring-data-commons/blob/c4c959b15b6303bcfc793530d37f603783f4c414/src/main/java/org/springframework/data/repository/core/support/AbstractEntityInformation.java#L42)을 확인하면, entity의 id로 지정된 필드가 0 이거나 null 일 때 참이다.
+
+즉, 두번째 테스트의 경우 `em.merge(entity)` 가 일어날 것이다.
+그런데 save()의 return 값을 주의깊게 보자.
+
+isNew(entity) 일 경우 인자로 들어왔던 엔티티를 그대로 반환하는데, 그렇지 않은 경우 새로 생성해서 반환한다.
+
+확인해보니 새로 생성해서 반환된 엔티티는 실제 DB의 아이디(2L)를 가지고 있다.
+
+![](https://velog.velcdn.com/images/kyy00n/post/9dd1fab4-1a4a-4c7d-af44-1a914ac9611f/image.png)
+
+그러므로 다음과 같이 테스트를 변경한다면 예외가 발생하지 않는다. (굳이 fixture를 사용하자면)
+
+```java
+@Test
+void 질문을_생성한다_2() {
+    //given
+    final User writer = userRepository.save(UserTest.JAVAJIGI);
+
+    //when
+    final Question Q2 = new Question("title2", "contents2").writeBy(writer);
+    questionRepository.save(Q2);
+
+    //then
+    Assertions.assertThat(Q2.getId())
+            .isNotNull();
+}
+```
+
+## Test Fixture를 JPA와 잘 사용하는 방법
+
+save()의 반환값으로만 뒤에 연산을 하는 방법으로 테스트를 통과할 수 있었다. 근데 위험요소를 만들지 않는 것이 더 좋지 않을까?
+
+테스트 픽스처를 사용하지 않는 것도 방법이지만, 테스트마다 객체 정의하는 코드가 난무하는 건 정말 싫어~
+
+그렇다고 했을 때 괜찮은 방법은, Fixture를 상수로 만드는 것이 아니라, 메서드의 반환값으로 만드는 것이다.
+
+```java
+public class UserTest {
+    public static User user() {
+        return new User("javajigi", "password", "name", "javajigi@slipp.net");
+    }
+}
+```
+
+흠, 나는 지금까지 경험적으로
+save()를 호출한 뒤에는 반환값을 사용하곤 했는데
+이번에 이유를 짚고 가서 다행이다.
+
+merge 의 경우를 잘 이해하고 .. 그러다 까먹으면 또 찾아오고~
+그럼 되지
+
+
+
+참고
+> https://velog.io/@dev-kmson/org.hibernate.PersistentObjectException-detached-entity-passed-to-persist-%EC%97%90%EB%9F%AC
