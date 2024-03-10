@@ -1,0 +1,135 @@
+---
+id: 9
+date: 2024-03-10
+title: Today I Learned
+tags:
+- InnoDB 잠금
+- 알고리즘
+---
+
+인턴도 끝났겠다 이제 마음껏 배운 내용을 블로그에 쓸 수 있게 되었다 :D
+
+# Real MySQL 스터디
+
+이전에 격리수준 실습하면서 글을 쓴적이 있는데, 이 때 의문으로 남겨뒀던 문제를 다시 확인할 수 있었다!
+바로 Repeatable read로 격리수준을 설정했을 때, innoDB에서도 팬텀리드가 발생하는 원리였다.
+결론적으로는 innodb에서도 update 쿼리를 잘렸을 때 (update, select for update, select for share) 팬텀리드가 발생하는데
+그 상황을 쉽게 풀어 설명한 글을 발견했다!
+
+> 우선 InnoDB에서 Phantom Read를 막는 방법은 언두 로그, 트랜잭션 번호를 사용하여 Phantom Read를 방지한다.
+A 트랜잭션을 시작하고, 데이터를 조회한다. A 트랜잭션 번호는 3이다.
+B 트랜잭션을 시작하고, 데이터를 추가하고 커밋한다. B 트랜잭션 번호는 4이다.
+그리고 다시 A 트랜잭션이 데이터를 조회할 때 언두 로그를 조회하는데, 언두 로그에 자신의 트랜잭션 번호보다 큰 트랜잭션 번호는 조회하지 않는다.
+따라서 Phantom Read가 발생하지 않는다.
+>
+> 하지만 UPDATE 쿼리를 실행했을 때, Phantom Read가 발생하는 이유는 다음과 같다.
+UPDATE 쿼리는 쓰기 락이 걸린다.
+이때 언두 로그에 쓰기 락을 걸 수 없기 때문에 테이블에 쓰기 락을 걸고, 직접 데이터를 변경한다.
+그리고 UPDATE 쿼리가 반영되며, 언두 로그에 자신의 트랜잭션 번호가 갱신된 데이터가 생긴다.
+그리고 SELECT 쿼리를 실행하면 언두 로그에 있는 데이터를 조회한다.
+언두 로그에 있던 데이터의 트랜잭션 번호는 자신의 트랜잭션 번호이므로, Phantom Read가 발생한다.
+>
+> 출처: [트랜잭션과 ACID 그리고 MySQL InnoDB에서 Phantom Read - velog](https://velog.io/@glencode/%ED%8A%B8%EB%9E%9C%EC%9E%AD%EC%85%98%EA%B3%BC-ACID-%EA%B7%B8%EB%A6%AC%EA%B3%A0-MySQL-InnoDB%EC%97%90%EC%84%9C-Phantom-Read#mysql-80%EC%9D%84-%ED%86%B5%ED%95%9C-%EC%8B%A4%ED%97%98)
+
+그리고 다른 재미있는 것도 많이 알게 되었는데 이걸 어떻게 정리를 할지 고민이된다.
+
+아, 그리고 이전에 내가 질문했던 Long Transaction의 기준을 다른 분께서 회사 DBA분을 통해 답변을 가져오셨는데
+서비스마다 아주 천차만별이라고 한다. 카카오톡 같이 실시간성이 아주 중요한 서비스의 경우 Long Transaction 시간을 아주 짧게 가져가고
+그렇지 않은 경우 널널하게 가져간다고 했다.
+
+나도 나중에 다양한 서비스들이 있는 회사에 들어가게 된다면 그런 사례를 직접 확인해볼 수도 있을 것 같다!
+
+# 2540. Minimum Common Value
+
+어제 문제를 못풀어서 어제꺼까지 두개 풀었다.
+
+https://leetcode.com/problems/minimum-common-value/?envType=daily-question&envId=2024-03-09
+
+처음에는 배열로 nums1 원소들을 관리할까했는데 constraints 를 보고 생각을 바꿨다.
+
+### Constraints
+- `1 <= nums1.length, nums2.length <= 105`
+- `1 <= nums1[i], nums2[j] <= 109`
+- Both nums1 and nums2 are sorted in **non-decreasing** order.
+
+비내림차순으로 되어있다는 걸 보고, 아 순서대로 훑으면 되겠구나 싶었다.
+
+```java
+class Solution {
+    public int getCommon(int[] nums1, int[] nums2) {
+        int pointer1 = 0;
+        int pointer2 = 0;
+        while (true) {
+            if (pointer1 == nums1.length || pointer2 == nums2.length) {
+                return -1;
+            }
+            int num1 = nums1[pointer1];
+            int num2 = nums2[pointer2];
+            if (num1 == num2) {
+                return num1;
+            }
+            if (num1 > num2) {
+                pointer2++;
+                continue;
+            }
+            pointer1++;
+        }
+    }
+}
+```
+변수이름을 포인터로 짓긴 했는데, 실제로 이런 방식을 투포인터라고 하는지 몰랐다. 이번에 알게 되어 좋았다 ㅇ^ㅇ
+
+# 349. Intersection of Two Arrays
+
+
+```java
+import java.util.HashSet;
+
+class Solution {
+    public int[] intersection(int[] nums1, int[] nums2) {
+        int[] exists = new int[1001];
+        for(int i = 0; i < nums1.length; i++) {
+              exists[nums1[i]] = 1;
+        }
+
+        HashSet<Integer> is = new HashSet<>();
+
+        for(int i = 0; i < nums2.length; i++) {
+            if (exists[nums2[i]] == 1) {
+                is.add(nums2[i]);
+            }
+        }
+
+        return is.stream().mapToInt(Number::intValue).toArray();
+    }
+}
+```
+제일 인기 많은 솔루션을 보니 비슷한데, 여긴 HashMap을 썼다.
+근데 이 사람 갯수는 왜 저장한건지 모르겠다.
+
+```java
+class Solution {
+    public int[] intersection(int[] nums1, int[] nums2) {
+        Map<Integer, Integer> map = new HashMap<>();
+        for (int num : nums1) {
+            map.put(num, map.getOrDefault(num, 0) + 1);
+        }
+
+        List<Integer> resultList = new ArrayList<>();
+        for (int num : nums2) {
+            if (map.containsKey(num)) {
+                resultList.add(num);
+                map.remove(num);
+            }
+        }
+
+        int[] result = new int[resultList.size()];
+        for (int i = 0; i < resultList.size(); i++) {
+            result[i] = resultList.get(i);
+        }
+        return result;
+    }
+}
+```
+
+
