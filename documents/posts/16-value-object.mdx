@@ -1,0 +1,205 @@
+---
+id: 16
+title: 마틴파울러는 VO를 어떻게 쓰라고 했을까?
+date: 2023-03-14
+description: 어떻게, 그리고 언제 사용할지 정리한다
+tags:
+  - Value Object
+---
+
+# 정의
+
+VO는 Value Object의 줄임말이다. 값객체라고 부를 수 있다.
+위키피디아에서 VO의 정의를 찾아보면 다음과 같이 나온다.
+
+> In computer science, a value object is a small object that represents a simple entity whose equality is not based on identity...
+
+동등성이 identity에 있지 않은 작은 객체라고 한다.
+값이 같으면 동등하다고 볼 수 있는 객체인 것이다.
+
+# how
+
+우리는 어떻게 값객체를 만들 수 있을까?
+```java
+Point p1 = new Point(2, 3);
+Point p2 = new Point(2, 3);
+
+assertEquals(p1, p2);
+```
+
+이 테스트를 통과시켜보자.
+
+## 값으로 동등성 정의
+
+이 테스트는 통과하게 만들기 위해서는 `Point` 클래스가 다음처럼 `equals` 를 재정의 하면 된다.
+
+```java
+class Point {
+	private int x;
+    private int y;
+
+    public Point(int x, int y) {
+    	this.x = x;
+        this.y = y;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        Point point = (Point) o;
+        return x == point.x && y == point.y;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(x, y);
+    }
+}
+```
+
+VO를 사용하게 되면, 우리는 여러 참조 변수들이 같은 인스턴스를 가리키는지 또는 같은 값을 가진 다른 인스턴스가 있는지에 대해 전혀 신경쓰지 않아도 된다. 하지만 이런 편안함에서 비롯한 문제가 있다.
+
+### problem - aliasing bug
+
+다음과 같이 점수를 나타내는 `Score` 클래스를 정의한다고 하자.
+우리는 `Score`를 value가 같으면 동등한 '값' 처럼 다루기 위해 `equals`를 재정의했다.
+
+```java
+public class Score {
+    private int value;
+
+    public Score(int value) {
+        this.value = value;
+    }
+
+    public void minus(int decr) {
+        this.value -= decr;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        Score score = (Score) o;
+        return value == score.value;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(value);
+    }
+}
+```
+
+그리고 한 번 다음 코드를 테스트로 돌려봤다.
+
+![](https://velog.velcdn.com/images/kyy00n/post/51f27647-192c-4baf-af57-fcc3b18a17c8/image.png)
+
+그런데 테스트가 실패한다.
+
+아니, 점수는 수정될 수 있는 것이 아닌가? 로지의 점수를 3점깎았다고 해서 만점이 100점이 아니게 되다니!
+
+이 예제는 alias 버그의 한 예시를 따라한 것이다. [(aliasingBug)](https://martinfowler.com/bliki/AliasingBug.html) 바로, 한 군데에서(`rosie.minus(3)`) 일어난 변경이 결과에 영향을 미친것이다.
+
+위의 예제는 클래스도 간단하고 코드도 간단해서 누구든 테스트코드를 보자마자 원인이 무엇인지 알기 쉽지만 프로젝트의 규모가 커지고 로직이 복잡해지면 원인은 더 찾기 힘들고 영향은 더 커진다.
+
+값처럼 편하게 다루기 위해 equals도 재정의한건데, 오히려 더 헷갈리게 된다. 이걸 어떻게 해결해야할까?
+
+
+
+## 불변 객체로 만들기
+
+사실 위키피디아의 VO 설명에는 다음 말이 더 있었다 ㅎㅎ
+
+> Value objects should be immutable:[3] this is required for the implicit contract that two value objects created equal, should remain equal.
+
+VO는 **불변(immutable)** 이어야 동등하도록 생성된 두 객체가 계속해서 동등할 수 있다는 말이다.
+
+일례로, 다른 언어에서는 '값 타입'을 지원하는데, 그 타입은 아예 변경이 불가능하다.
+그런데 자바에는 사용자가 언어 레벨에서 변경 불가능한 '값 타입'을 만들 수 없지 않은가?
+언어에서 값 객체라는 기능을 제공하지는 않는 것이다.
+
+그렇담 우리가 계속해서 부르고 알고 있는 자바의 VO는 무엇일까?
+사실 자바의 VO는 값객체를 모방한, **불변 참조 객체**인 것이다.
+
+자 그럼 우리의 Score를 불변으로 고쳐보자.
+
+
+### `Score` 고치기
+
+`Score` 의 필드 `value` 를 `final`로 선언하여 변경자(setter)가 생길 수 없게 한다.
+(필드가 참조형일 경우, 그 객체도 immutable 이어야한다는 조건이 붙는다. 이거는 불변에 대해 따로 더 찾아 보는 편이 낫다.)
+
+이제 우리는 점수를 고치고 싶으면 새로운 점수 객체를 생성할 수 밖에 없다.
+
+```java
+public class Score {
+    final private int value;
+
+    public Score(int value) {
+        this.value = value;
+    }
+
+    public Score minus(int decr) {
+        return new Score(value - decr);
+    }
+}
+```
+
+이제 만점이 만점이 아니게 되는 일은 없다.
+![](https://velog.velcdn.com/images/kyy00n/post/cb505571-905e-4eb5-b7ae-c482c2519ff7/image.png)
+
+
+# when
+
+VO는 불변을 통해 안전하게, 값이 같은 객체들이 모두 동등하게 다뤄질 수 있게 한다는 것을 알게 되었다. 하지만 같은개념이라도 보통의 참조객체로 다룰지, 값객체로 다룰지는 컨텍스트마다 달라져야한다.
+
+값객체는 그 정의처럼, identity가 없는 개념에 사용할 수 있는데, 그 예시는 다음과 같다.
+
+### 원시값
+
+- 원시값은 원래 값으로 비교하기 때문에 identity가 없다.
+- 예를 들어 전화번호는 문자열로 나타낼 수도 있지만, 객체로 표현해 형식을 나눌 수도 있고 값의 검증을 자기 자신이 할 수 있다.
+
+### value sementic object
+
+마틴파울러가 VO에 대해 설명한 글의 일부분이다.
+
+> In Patterns of Enterprise Application Architecture I described Value Object as a small object such as a Money or date range object. Their key property is that they follow value semantics rather than reference semantics.
+
+
+points, monies, 또는 ranges 같은, 작은 객체들 중 참조(존재) 자체가 아니라 값으로 의미가 결정되는 개념들을 VO로 사용할 수 있다.
+
+ - 하지만 더 큰 구조도 **동일성(identity)의 개념을 가지고 있지 않고, 프로그램 내에서 참조를 공유할 필요가 없다면** VO로 다뤄질 수 있다.
+
+---
+
+단순히 데이터를 불변으로 옮기기 위한 장치인줄만 알았는데, 미션을 진행하고 학습하며 VO는 transfer를 위한 것이 아님을 깨닫게 되었다.
+
+#### 관련되어있지만 다루지 않은 개념들
+
+- 불변: 내가 다룬 `Score` 예제에서는 필드로 primitive 만을 다루었다. reference 타입, 그걸 넘어서 컬렉션이 필드일경우 불변을 어떻게 구현할 수 있을지 더 찾아볼 수 있다.
+
+- DTO: 초기 J2EE 문서에서 VO를 데이터 전송 객체를 의미하는 용어로 사용했다고 한다. 현재는 그 용어를 Transfer Object 로 바꿨다고는 하지만 나와 마찬가지로 많은 프로그래머들이 VO와 DTO를 명확히 구분하지 못하고 있다.
+
+- DDD: VO를 검색하면 도메인 주도 개발(Domain-Driven Development)에서의 VO 설명이 많이나온다. DDD에서 중요한 개념인 것 같다.
+ >
+Value Object is an object that represents a concept from your problem Domain. It is important in DDD that Value Objects support and enrich Ubiquitous Language of your Domain. They are not just primitives that represent some values - they are domain citizens that model behaviour of your application.
+
+라는데 아직 잘 이해가 안 된다. 공부하자
+
+---
+
+참고한 자료
+> https://en.wikipedia.org/wiki/Value_object
+https://martinfowler.com/bliki/ValueObject.html
+https://martinfowler.com/bliki/AliasingBug.html
