@@ -1,0 +1,316 @@
+---
+id: 12
+title: Chapter 04. 아키텍처
+date: 2024-03-03
+tags:
+  - Real MySQL
+---
+
+- 4.3 MyISAM 스토리지 엔진 아키텍처
+- 4.4 MySQL 로그 파일
+
+
+### 4.2.13 InnoDB와 MyISAM, MEMORY 스토리지 엔진 비교
+
+초장부터 결론이 나오는데
+
+> 8.0 버전부터는 InnoDB 스토리지 엔진 만으로 모든 기능을 구현할 수 있게 되었고, InnoDB의 기능도 계속 개선되어 MyISAM 스토리지 엔진의 기능은 **도태**되는 상황이고, 이후 버전에서는 **MyISAM 스토리지 엔진은 없어질것으로 예상했다.**
+
+
+- MySQL 5.5부터는 InnoDB 스토리지 엔진이 기본 스토리지 엔진이 됐지만
+- 8.0 전까지는 MySQL 서버의 시스템 테이블은 MyISAM 테이블을 사용
+- 사용자 인증 관련 정보, 복제 관련 정보
+- 8.0 이후부터는 시스템 테이블 또한 InnoDB 스토리지 엔진으로 교체됨 (모두!)
+- 또한 공간 좌표 검색 + 전문 검색 기능 모두 InnoDB 스토리지 엔진을 지원하도록 개선됨.
+책을 쓴 시점에도 MySQL의 모든 기능이 InnoDb 기반으로 개편이 되어 MyISAM 스토리지 엔진만이 가지는 장점이 없다고 했다.
+
+---
+
+## 4.3 MyISAM 스토리지 엔진 아키텍처
+MyISAM 스토리지 엔진의 성능은
+- 키 캐시
+- 운영체재 캐시/버퍼
+에 영향을 미친다.
+
+---
+
+### 4.3.1 키 캐시
+MyISAM 의 키캐시 (Key Cache, 키 버퍼로도 불림): InnoDB의 버퍼 풀과 비슷한 역할
+
+InnoDB 버퍼풀과의 차이점
+1. 키 캐시는 인덱스만을 대상으로 함
+2. 디스크  쓰기 작업에 대해서만 부분적으로 버퍼링 역할을 한다.
+
+> 키 캐시가 얼마나 효율적인지 측정하는 법
+>
+> - $key\_reads$: 키를 디스크에서 읽어온 횟수 -> 캐시 미스
+> - $key\_read\_requests$: 총 캐시 조회 수
+> 라고 하면, 캐시 hit rate는
+> $hit\_rate = 100 - (key\_reads / key\_read\_requests * 100)$
+
+---
+
+#### 상세 매뉴얼
+
+1. 권장 메모리 할당량
+매뉴얼에서는 Hite rate를  99% 이상으로 유지하라고 함.
+만약 모자르다면? -> 캐시에 사용하는 메모리 공간 늘리기
+
+- 32비트 운영체제에서는 4GB 이하까지만 가능
+- 64비트 운영체제에서는 `OS_PER_PROCESS_LIMIT` 까지 할당 가능
+
+2. 키 캐시 메모리 할당량 바꾸는 법
+`key_buffer_size`:  Default 키 캐시 공간을 설정하는 파라미터.
+
+Default 키 캐시 외에도 키 캐시를 만들어 테이블마다 사용할 키 캐시를 명시할 수 있음.
+`만들고_싶은_키캐시_이름.key_buffer_size`
+이 변수에 원하는 만큼 메모리를 할당해주면 된다.
+
+3. 새로 만든 키 캐시를 사용하려면 스토리지 엔진에 알려줘야한다.
+ex)`kbuf_board.key_buffer_size = 2GB` 했다면..
+`CACHE INDEX db1.board, db2.board IN kbuf_board;`
+이렇게 설정해야 비로소 board 테이블의 인덱스가 `kbuf_board` 키캐시를 사용하게 된다.
+더 자세한 것은 MySQL 매뉴얼의 [Multiple Key Caches](https://dev.mysql.com/doc/refman/8.0/en/multiple-key-caches.html) 참고
+
+---
+## 4.3.2 운영체제의 캐시 및 버퍼
+MyISAM 테이블을 주로 사용한다면 키캐시를 할당할 때, 운영체제가 사용할 수 있는 캐시 공간을 위해 충분한 메모리를 남겨둬야한다.
+
+퀴즈: 왜일까용? ~~ 힌트: 키캐시는 인덱스를 캐시하는 용도로 사용한다
+
+답: 읽은 데이터를 캐싱하거나 변경한 데이터를 버퍼링할 공간이 MyISAM 스토리지엔진에는 없다. 스토리지엔진 단에서 지원하지 않기 때문에, OS의 캐시 기능이라도 사용할 수 있도록 하는 것이 성능에 필요
+
+#### 상세 가이드
+- 키 캐시는 최대 물리메모리의 40%를 넘지 않도록 설정
+- 나머지 메모리 공간은 운영체제가 자체적인 캐시 공간으로 사용할 수 있도록
+
+옛날글: MyISAM와의 차이를 기반으로 InnoDB 버퍼 파라미터 조정 https://m.blog.naver.com/youlcc74/150126774869
+
+---
+## 4.3.3 데이터파일과 PK(인덱스) 구조
+
+InnoDB 스토리지 엔진
+- PK로 클러스터링돼 저장된다고 했다. (PK 값이 비슷한 레코드끼리 묶어서 저장, PK 값이 레코드의 위치를 결정)
+
+반면 MyISAM은
+- PK랑 무관하게 INSERT 되는 순서대로 데이터 파일에 저장된다.
+- 저장된 레코드마다 ROWID라는 물리적주솟값을 가지고 PK과 세컨더리 인덱스는 이 ROWID(물리적 주소)를 포인터로 가지게 된다.
+
+> ROWID 는 고정길이와 가변길이로 저장이 가능하다
+> - 고정길이 ROWID: 테이블의 최대 레코드 수(MAX_ROWS 옵션)가 정해져있는 경우
+>   ROWID에 레코드 삽입 순서를 4바이트 정수로 저장한다.
+> - 가변길이 ROWID: 테이블의 최대 레코드 수가 정해져있지 않은 경우 첫번째 바이트는 ROWID 길이를 저장하고 나머지 공간에 ROWID를 저장한다.
+>   고정길이에서와 달리 데이터 파일에서 레코드의 위치(offset) 이 사용된다.
+
+---
+
+# 4.4 MySQL 로그파일
+
+**개발자**들은 로그 파일을 활용해서, MySQL 의 깊은 내부지식이 없어도 서버의 상태나 부하원인을 쉽게 찾을 수 있다. 따라서 책에 나오는 로그 파일들을 자세히 확인하는 습관을 들일 필요가 있다.
+
+## 4.4.1 에러 로그 파일
+
+- MySQL이 실행되는 도중에 발생하는 에러나 경고 메시지가 출력되는 로그 파일이다.
+- `.err` 라는 확장자가 붙은 파일로 생성됨.
+
+다음 메시지들을 많이 보게 될 것
+
+1. 시작하는 과정과 관련된 정보성 메시지 / 에러메시지
+`mysqld: ready for connection` -> 서버가 정상적으로 기동했다는 로그, 이후 에러나 경고 메시지가 없으면 문제가 없는 것으로 판단 가능.
+
+유즈케이스
+- 설정된 변수명/값 적용 및 정상 동작 확인
+- 설정 파일 변경 시
+- 데이터베이스 비정상적 종료 후 다시 시작하는 경우
+
+2. 비정상적 종료 시 InnoDB의 트랜잭션 복구 메시지
+- 만약에 종료 이후 잘 동작하지 못하고 복구되지 못하는 경우 이 에러 메시지를 출력하고 MySQL이 다시 종료된다.
+- 이 경우 해결이 어려우니 `innodb_force_recovery` 파라미터를 0보다 큰값으로 설정 후 MySQL 재시작 https://dev.mysql.com/doc/refman/8.0/en/forcing-innodb-recovery.html
+3. 쿼리 처리도중 발생한 에러 메시지
+- 쿼리에 대한 에러는 예방이 어렵다.
+- 따라서 에러 로그 파일을 주기적으로 검토하고 문제가 될만한 쿼리를 확보
+4. Aborted connection
+- 클라이언트 애플리케이션에서 정상적으로 접속 종료를 하지 못한 경우 찍힘
+- 네트워크상 문제로 의도치 않게 접속이 끊어지는 때도 포함
+- 이 메시지가 상당히 많이 누적된다면
+- 애플리케이션의 커넥션 종료 로직을 살펴보기
+- max_connect_errors 값이 너무 낮지 않은지 확인하고 필요시 증가시키기
+5. InnoDB 모니터링 또는 상태조회 명령
+이건 모니터링을 활성화해두면 로그에 남는 것인데, 이 로그는 사이즈가 커서 계속 모니터링을 활성화해두면 파일시스템 공간을 다 사용해버릴 수 있다.
+- 따라서 모니터링을 사용한 이후에는 다시 비활성화하는 습관을 들여야한다.
+6. MySQL 종료 메시지
+서버가 종료돼있거나, 아무도 모르게 재시작되는 경우를 보게 된다면, 에러로그 파일에서 MySQL이 마지막으로 출력한 메시지를 확인하는 것이 유일한 원인 파악 방법이다.
+- Received SHUTDOWN from user... -> 누군가에 의해 종료
+- 아무런 메시지가 없거나 스택트레이스가 출력 -> Segmentation fault -> 버그와 관련 있는지 조사하고 MySQL 버전을 업그레이드 또는 대비책 마련하기
+---
+## 4.4.2 제너럴 쿼리 로그 파일
+
+실행되는 모든 쿼리들의 목록을 확인할 수 있는 로그 파일.
+- 쿼리 요청을 받으면 바로 기록, 쿼리가 실패해도 일단 로그 파일에는 남는다.
+
+찾아본 것
+
+![240318-110639](/notes/12-mysql-architecture/img.png)
+
+
+- 어떻게 킬까?: `general_log` 를 ON으로 바꾼다.
+- RDS: DB 파라미터에서 `general_log`를 1로 바꾼다. 0으로 하면 끄는 것
+- 많이들 제너럴 로그라고 부르는 것 같다.
+- 활용 방법: general_log를 켜두고 실제 트랜잭션이나 DB 쿼리를 확인하고 싶은 상황을 테스트 한뒤 끄고 로그를 뽑아 확인한다.
+
+---
+## 4.4.3 슬로우 쿼리 로그
+
+슬로우 쿼리 로그는 `long_query_time` 이상의 시간이 소요된 쿼리가 모두 기록된다.
+> 소요 시간이 측정 가능 -> 일단 정상적으로 실행이 완료가 된 쿼리가 기록되는 것.
+
+슬로우쿼리 로그는
+- 서비스 운영 중, MySQL 서버의 전체적인 성능 저하를 검사
+- 정기 점검
+시 쿼리 튜닝에 활용할 수 있다.
+
+서비스를 출시하기 전이라면 제너럴 로그로 모든 쿼리를 튜닝할 수도 있겠지만, 운영중에는 문제가 되는 쿼리를 찾기 위해 슬로쿼리 로그를 활용하는 편이 나을 것이다.
+
+슬로우쿼리도 마찬가지로 활성화여부를 다음과 같이 확인할 수 있다.
+![[Pasted image 20240224175305.png]]
+
+- 기록을 파일로 기록할지 테이블로 기록할지 선택 가능
+- 테이블: `log_output=TABLE` -> CSV 스토리지 엔진
+- 파일: `log_output=FILE` -> 디스크의 파일
+
+자세한 내용은 https://dev.mysql.com/doc/refman/8.0/en/slow-query-log.html 참고..
+
+---
+### Slow Query Log Contents
+![240318-105616](/notes/12-mysql-architecture/240318-105616.png)
+
+---
+#### Percona Toolkit의 `pt-query-digest`
+
+제너럴 로그나, 슬로우쿼리 로그나 둘 다 내용이 상당히 많아서 직접 쿼리를 하나씩 검토하기에는 너무 많이 걸리거나 성능에 영향을 주는 쿼리를 선별하기가 어려울 수 있다.
+
+그럴 때 Percona에서 개발한 `pt-query-digest` 스크립트를 이용하면 다음과같이
+쿼리를 빈도/처리성능 으로 정렬해서 볼 수 있다.
+
+**사용법**
+```bash
+> pt-query-digest --limit 100% --type slowlog mysql-slowquery.log > mysql-slowquery.sql
+```
+
+**결과물**
+세 가지 표를 보여준다.
+
+1. 슬로우 쿼리 통계: 모든 쿼리를 대상으로 로그 실행시간, 잠금 대기시간 등에 대해 평균/최대/최소 값을 표시한다.
+2. 실행빈도 및 누적 실행 시간순 랭킹
+3. 쿼리별 실행 횟수 및 누적 실행시간 상세 정보
+- 아이디(쿼리 모양) 별로 모든 쿼리의 상세정보를 확인할 수 있음
+
+세가지를 한 파일로 제공해줌. 섹션 구분해서 보면 됨.
+
+---
+
+```
+# 170ms user time, 60ms system time, 37.28M rss, 390.39G vsz
+# Current date: Tue Wed  21 11:34:00 2024
+# Hostname:
+# Files: ./mysql-slowquery.log.2024-02-21.total
+# Overall: 122 total, 17 unique, 0.00 QPS, 0.01x concurrency _____________
+# Time range: 2024-02-20T03:19:52 to 2024-02-21T11:34:21
+# Attribute          total     min     max     avg     95%  stddev  median
+# ============     ======= ======= ======= ======= ======= ======= =======
+# Exec time           244s      1s     13s      2s      4s      2s      1s
+# Lock time           27ms    28us     7ms   221us   224us   727us    80us
+# Rows sent         14.24M       0 932.16k 119.53k 345.04k 193.73k  36.57k
+# Rows examine      30.34M  30.07k 932.16k 254.68k 345.04k 182.57k 201.74k
+# Bytes sent         2.35G       0 171.89M  19.72M  83.55M  35.35M   6.61M
+# Query size       838.24k      57 150.12k   6.87k   9.80k  22.89k  299.03
+# Bytes receiv           0       0       0       0       0       0       0
+# Created tmp            0       0       0       0       0       0       0
+# Created tmp            7       0       1    0.06       0    0.23       0
+# Errno                  0       0       0       0       0       0       0
+# Read first            81       0       1    0.66    0.99    0.47    0.99
+# Read key           1.55M       1 353.43k  13.02k   92.72  53.05k    0.99
+# Read last              1       0       1    0.01       0    0.09       0
+# Read next         13.52M       0 932.16k 113.44k 345.04k 196.76k       0
+# Read prev        353.42k       0 353.42k   2.90k       0  31.11k       0
+# Read rnd               0       0       0       0       0       0       0
+# Read rnd nex      16.32M       0 353.76k 136.99k 345.04k 156.66k  36.57k
+# Sort merge p          24       0       4    0.20       0    0.84       0
+# Sort range c           0       0       0       0       0       0       0
+# Sort rows          1.18k       0      88    9.94   31.70   15.54       0
+# Sort scan co          48       0       1    0.39    0.99    0.48       0
+
+# Profile
+# Rank Query ID                            Response time Calls R/Call  V/M
+# ==== =================================== ============= ===== ======= ===
+#    1 0x2930BB4A8AE2B11C8483B8A25C4CB95D  52.4226 21.4%    42  1.2482  0.03 SELECT orders order_details
+#    2 0x6DCA79447ACE32613FE4C600ED1F1D4D  51.1631 20.9%     5 10.2326  0.17 SELECT user_details
+#    3 0x437F2791F07CC1D5A8CE70B8E8FEC9F0  30.1331 12.3%    15  2.0089  0.01 SELECT orders
+#    4 0xB0DA8CE70B8EC4B90D2BD4DA83ECC9F0  26.4805 10.8%     5  5.2961  0.66 SELECT orders order_details
+#    5 0x78E2578A25C4CB95737F442F3D3CC9F0  15.0265  6.1%     5  3.0053  0.03 SELECT users
+#    6 0x14F510BD1C4C139C6510AF6BB56367C9  10.6621  4.4%     5  2.1324  0.01 SELECT order_details
+#    7 0x5DDG83F1FE8C8B7F67D7F260BCAB67C9  10.5025  4.3%     5  2.1005  0.05 SELECT users
+#    8 0x74E03E26F2A9C5EEAFB67C9F30F09E6C   8.9099  3.6%     6  1.4850  0.01 SELECT users user_details
+#    9 0xC9E0570F5E8AADB5A7E49E594AF9E6CE   7.3297  3.0%     5  1.4659  0.00 SELECT orders order_details
+#   10 0x00487BA629A2F8197BE49E594AF2AAF7   5.8709  2.4%     5  1.1742  0.00 SELECT orders
+#   11 0xF9D39C7EB32F698B9E6CDEADFAAFCAB6   5.8167  2.4%     5  1.1633  0.00 SELECT users user_details
+#   12 0x8D224827A8933B9A51D7F260BCAB698F   5.7548  2.4%     5  1.1510  0.00 SELECT orders
+#   13 0xC4FCD216421D20756C5EA7CED3ADC5EA   5.1070  2.1%     5  1.0214  0.00 SELECT users user_details
+# MISC 0xMISC                               9.3149  3.8%     9  1.0350   0.0 <4 ITEMS>
+
+# Query 1: 0.00 QPS, 0.00x concurrency, ID 0x2930BB4A8AE2B11C8483B8A25C4CB95D at byte 926647
+# This item is included in the report because it matches --limit.
+# Scores: V/M = 0.03
+# Time range: 2023-01-02T04:11:30 to 2023-01-02T11:34:21
+# Attribute    pct   total     min     max     avg     95%  stddev  median
+# ============ === ======= ======= ======= ======= ======= ======= =======
+# Count         34      42
+# Exec time     21     52s      1s      2s      1s      2s   200ms      1s
+# Lock time     78    21ms   106us     7ms   507us     1ms     1ms   159us
+# Rows sent      0      27       0       3    0.64    1.96    0.95       0
+# Rows examine  47  14.50M 353.46k 353.82k 353.62k 345.04k       0 345.04k
+# Bytes sent     0       0       0       0       0       0       0       0
+# Query size    97 817.44k   5.80k 150.12k  19.46k  97.04k  35.96k   6.31k
+# Bytes receiv   0       0       0       0       0       0       0       0
+# Created tmp    0       0       0       0       0       0       0       0
+# Created tmp    0       0       0       0       0       0       0       0
+# Errno          0       0       0       0       0       0       0       0
+# Read first    51      42       1       1       1       1       0       1
+# Read key       0    1008       8      95      24   33.28   13.58   26.08
+# Read last      0       0       0       0       0       0       0       0
+# Read next      0       0       0       0       0       0       0       0
+# Read prev      0       0       0       0       0       0       0       0
+# Read rnd       0       0       0       0       0       0       0       0
+# Read rnd nex  88  14.50M 353.44k 353.76k 353.58k 345.04k       0 345.04k
+# Sort merge p   0       0       0       0       0       0       0       0
+# Sort range c   0       0       0       0       0       0       0       0
+# Sort rows     75     913       4      88   21.74   31.70   13.56   24.84
+# Sort scan co  87      42       1       1       1       1       0       1
+# String:
+# Databases    db_commerce
+# End          2023-01-02... (1/2%), 2023-01-02... (1/2%)... 40 more
+# Hosts        10.128.93.211 (6/14%), 10.128.94.172 (5/11%)... 17 more
+# Start        2023-01-02... (1/2%), 2023-01-02... (1/2%)... 40 more
+# Users        group
+# Query_time distribution
+#   1us
+#  10us
+# 100us
+#   1ms
+#  10ms
+# 100ms
+#    1s  ################################################################
+#  10s+
+# Tables
+# ... 밑에 더 있고.. 쿼리마다 전부 보여줌
+```
+
+---
+
+https://severalnines.com/blog/analyzing-your-sql-workload-using-pt-query-digest/ 여기 설명 잘돼있음
+필요할 때 찾아보면 좋을 듯 합니다
+
+검색해보니, MySQL 튜닝과 관련해서 많이 언급되는 것 같다.
+[TOP10 쿼리를 뽑아 mail로 첨부파일 형식으로 주에 한번씩 보낸 블로그 포스트](https://jhdatabase.tistory.com/entry/MySQL-Slow-query-%EB%A9%94%EC%9D%BC-%EC%A0%84%EC%86%A1-use-pt-qeury-digest)
+
+더 정확하고 자세한 사용법은 [Percona 공식문서](https://docs.percona.com/percona-toolkit/pt-query-digest.html#output) 에서 확인
