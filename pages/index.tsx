@@ -3,7 +3,8 @@ import { GetStaticProps, InferGetStaticPropsType } from 'next';
 import PostList from '@/components/post/PostList';
 export const getStaticProps: GetStaticProps = async () => {
   const posts = allPosts.sort((a, b) => {
-    return Number(new Date(b.date)) - Number(new Date(a.date)) || a._id.localeCompare(b._id);
+    const dateDiff = Number(new Date(b.date)) - Number(new Date(a.date));
+    return dateDiff === 0 ? b.id - a.id : dateDiff;
   });
 
   return {

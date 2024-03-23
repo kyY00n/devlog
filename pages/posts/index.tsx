@@ -3,8 +3,10 @@ import { GetStaticProps, InferGetStaticPropsType } from 'next';
 import PostList from '@/components/post/PostList';
 
 export const getStaticProps: GetStaticProps = async () => {
-  const posts = allPosts.sort((a, b) => Number(new Date(b.date)) - Number(new Date(a.date)));
-
+  const posts = allPosts.sort((a, b) => {
+    const dateDiff = Number(new Date(b.date)) - Number(new Date(a.date));
+    return dateDiff === 0 ? b.id - a.id : dateDiff;
+  });
   return {
     props: {
       posts,

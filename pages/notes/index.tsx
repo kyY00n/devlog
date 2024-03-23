@@ -3,7 +3,10 @@ import { GetStaticProps, InferGetStaticPropsType } from 'next';
 import NoteList from '@/components/note/NoteList';
 
 export const getStaticProps: GetStaticProps = async () => {
-  const notes = allNotes.sort((a, b) => Number(new Date(b.date)) - Number(new Date(a.date)));
+  const notes = allNotes.sort((a, b) => {
+    const dateDiff = Number(new Date(b.date)) - Number(new Date(a.date));
+    return dateDiff === 0 ? b.id - a.id : dateDiff;
+  });
 
   return {
     props: {
