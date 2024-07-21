@@ -3,11 +3,9 @@ import rehypePrettyCode from 'rehype-pretty-code';
 import { Pluggable } from 'unified';
 import rehypeSlug from 'rehype-slug';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
 
-// 원하는 코드 블록 테마가 있다면 찾아서 적용하면 된다.
-const options = {
-  theme: 'github-dark',
-};
 
 export const Post = defineDocumentType(() => ({
   name: 'Post',
@@ -44,7 +42,16 @@ export default makeSource({
   contentDirPath: 'documents',
   documentTypes: [Post, Note],
   mdx: {
-    rehypePlugins: [rehypeSlug, [rehypePrettyCode, options]] as Pluggable[], // https://stackoverflow.com/questions/77344966/next-js13-contentlayer-syntax-highlight-error-issues
-    remarkPlugins: [remarkGfm],
+    rehypePlugins: [
+      [rehypeKatex, {output: 'mathml'}] as Pluggable[],
+      rehypeSlug, 
+      [rehypePrettyCode, {
+        theme: 'github-dark',
+      }]
+    ] as Pluggable[], // https://stackoverflow.com/questions/77344966/next-js13-contentlayer-syntax-highlight-error-issues
+    remarkPlugins: [
+      remarkGfm, 
+      remarkMath
+    ],
   },
 });
