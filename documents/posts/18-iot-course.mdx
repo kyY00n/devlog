@@ -1,6 +1,6 @@
 ---
 id: 18
-title: Basics of Microcontroller programming
+title: Basics of Microcontroller programming & Lab1
 date: 2024-07-01
 description: 
 tags:
@@ -8,11 +8,14 @@ tags:
   - EPITA Summer Camp 2024
 ---
 
+IoT 코스는 에피타 여름캠프의 첫 수업이었다.
+에피타 수업에서, IoT 실습을 진행하기 위해 필요한 선수지식을 학습했다 :D
+
+다음은 간단히 정리한 내용이다.
+
 # 1. IoT and microcontrollers
 
 ## IoT
-
-![240721-220517](/posts/18-iot-course/240721-220517.png)
 
 > What is IoT?
 
@@ -21,8 +24,6 @@ and software, enabling them to collect and exchange data with each other and wit
 central systems, often facilitating automation, remote monitoring, and control.
 
 ### Applications
-
-![240721-220615](/posts/18-iot-course/240721-220615.png)
 
 - Smart homes
 - Smart cities
@@ -46,10 +47,17 @@ etc.
 - Reliability: connectivity issue, device failures, or data inaccuracies. -> malfunctions
 - Environmental impact: huge power consumtion, electronic wase -> increase of environmental impact.
 
+환경문제는 좀 더 찾아봤는데, 다음 내용을 보고 이해할 수 있었다.
+
+> 기술 발전에 비추어 볼 때, IoT가 어떤 방향, 어떤 방식으로 구현될지에 대한 논의가 필요하다.
+>엄청난 양의 IoT 기기들이 IP 기반 네트워크에 연결될 것이며 수월한 네트워크 액세스를 보장하기 위한 방안을 마련해야 한다.
+>수백억 개의 물체들이 IP 네트워크에 연결되는 시스템을 구현하기 위한 안정성을 확보해야 한다.
+>또한 인증, 암호화, 음성, 비디오 신호를 효과적으로 전달하기 위한 멀티캐스트 기능 같은 다른 ICT 기술들도 지속적으로 함께 기술개발이 이루어져야 할 것이다.
+> 출처: [KCA 아티클](https://www.kca.kr/hot_clips/vol70/sub01.html?lang=ko)
 
 ## Microcontrollers
 
-> What is Microcontroller?
+What is Microcontroller?
 > Microcontroller is a small computer on a single integrated circuit.
 
 ![240721-222159](/posts/18-iot-course/240721-222159.png)
@@ -71,8 +79,6 @@ All of these items are necessary to IoT devices
 
 > Example of an eletrical resistor: Ohms'law = characteristic of the resistor
 
-![240721-222749](/posts/18-iot-course/240721-222749.png)
-
 ```math
 U_R = R \times I
 ```
@@ -93,11 +99,13 @@ Voltage divider can be used to
 - measure some displacement through a resistance variation (potentiometer)
     (we used potentiometer in this course)
 
+<img src='/posts/18-iot-course/240721-234048.png' width='50%' style={
+    {display: 'block', 'margin-left': 'auto', 'margin-right': 'auto', width: '50%'}
+    }></img>
+
 ```math
 V_{\text{out}} = V_{\text{in}} \frac{R_2}{R_1 + R_2}
 ```
-
-![](/posts/18-iot-course/240721-234048.png)
 
 
 ## Electrical signals: Analog & Digital
@@ -118,8 +126,9 @@ X(t) \text{ continuous function}
 \end{array}
 \right.
 ```
-
-![240721-235052](/posts/18-iot-course/240721-235052.png)
+<img src='/posts/18-iot-course/240721-235052.png' width='50%' style={
+    {display: 'block', 'margin-left': 'auto', 'margin-right': 'auto', width: '50%'}
+    }></img>
 
 ### Analog to Digital Conversion
 
@@ -132,15 +141,21 @@ X(t) \text{ continuous function}
 
 ADC is converter for analog signal to transform to Digital.
 
-![240721-235359](/posts/18-iot-course/240721-235359.png)
+<img src='/posts/18-iot-course/240721-235359.png' width='50%' style={
+    {display: 'block', 'margin-left': 'auto', 'margin-right': 'auto', width: '50%'}
+    }></img>
 
 #### Example: 3 bit ADC with full scale voltage = 8V
 
-![240721-235520](/posts/18-iot-course/240721-235520.png)
+<img src='/posts/18-iot-course/240721-235520.png' width='50%' style={
+    {display: 'block', 'margin-left': 'auto', 'margin-right': 'auto', width: '50%'}
+    }></img>
 
 #### ADC on different microcontrollers
 
-![240721-235555](/posts/18-iot-course/240721-235555.png)
+<img src='/posts/18-iot-course/240721-235555.png' width='50%' style={
+    {display: 'block', 'margin-left': 'auto', 'margin-right': 'auto', width: '50%'}
+    }></img>
 
 > We used ESP32 in this course, then a resolution of ADC was 12 bits :D!
 
@@ -176,13 +191,17 @@ Communication interfaces are divided to two ways.
 One is parallel, and the other is serial.
 
 - Parallel Communication
-    ![240722-000749](/posts/18-iot-course/240722-000749.png)
+    <img src='/posts/18-iot-course/240722-000749.png' width='50%' style={
+    {display: 'block', 'margin-left': 'auto', 'margin-right': 'auto', width: '50%'}
+    }></img>
     
     used in the past because its simplicity.
     Progressively replaced by serial communications with offer greater devices connection capabilities (fewer wires).
 
 - (Serial) Communication bus
-    ![240722-000800](/posts/18-iot-course/240722-000800.png)
+    <img src='/posts/18-iot-course/240722-000800.png' width='50%' style={
+    {display: 'block', 'margin-left': 'auto', 'margin-right': 'auto', width: '50%'}
+    }></img>
 
     - Synchronous (synchronized by a clock signal)
         - Inter-Integrated circuit
@@ -221,7 +240,9 @@ Our needs for this course were ..
 
 -> Choice of the Freenove ESP32 WROVER CAM board
 
-![240722-002424](/posts/18-iot-course/240722-002424.png)
+<img src='/posts/18-iot-course/240722-002424.png' width='40%' style={
+    {display: 'block', 'margin-left': 'auto', 'margin-right': 'auto', width: '50%'}
+    }></img>
 
 It has ESP32 Wrover Microcontroller :D
 
