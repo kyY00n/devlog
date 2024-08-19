@@ -1,0 +1,263 @@
+---
+id: 19
+title: AWS Container (1) - Docker & ECS Intro
+date: 2024-08-14
+tags:
+  - Docker
+  - Container
+  - ECS Hands on
+---
+
+공부 & 사이드프로젝트에 적용 겸 쿠버네티스 스터디를 시작하게 되었는데
+그 전에 혼자 컨테이너 부분만 다시 SAA 강의를 들어볼 생각이다!
+
+강의에 컨테이너 섹션에서 docker-ecs-ecr-eks-apprunner 순으로 알려줘서 이걸 들어보고 쿠버네티스에 대해 더 공부해봐야지.
+
+# 1. Docker Instruction
+## 도커란?
+
+- 도커는 애플리케이션을 배포하기위한 software development platform
+- 앱은 컨테이너로 패키징된다; containers can be run on any OS
+- 애플리케이션이 컨테이너와 마찬가지로
+    - any machine
+    - no compatibility issues
+    - Predictable behavior
+    - Less work
+    - Works with any language, any OS, any technology
+- Use cases: MSA, lift-and-shift apps from on-premise to the AWS cloud
+
+## Docker on an OS
+
+![240818-203431](/posts/19-eks-instroduction/240818-203431.png)
+
+그림과 같이 어떤 애플리케이션이든 컨테이너로 패키징해 실행할 수 있다.
+
+## 도커 이미지는 어디에 저장되나요?
+
+- 도커 이미지는 '도커 저장소'에 저장된다.
+
+대표적으로 다음 두 저장소가 있다.
+
+- Docker hub
+  - public repository
+  - 알려진 많은 기술 혹은 OS의 베이스 이미지를 찾아볼 수 있다.
+- AWS ECR
+  - Private repository
+  - Public repository 도 있다. (Amazon ECR Public Gallery [https://gallercy.ecr.aws](https://gallercy.ecr.aws))
+
+
+## Docker vs. Virtual Machines
+
+- 도커는 가상화 기술 중 하나이지만, 정확하게 그렇지는 않다.
+- 리소스가 하나의 호스트 내에서 공유된다. -> 컨테이너 여러대가 하나의 서버에 있다.
+
+### Virtual Machine의 구조
+
+![240818-204045](/posts/19-eks-instroduction/240818-204045.png)
+
+- vm 마다 리소스를 공유하지 않고, 격리되어있다.
+- AWS의 EC2가 생성되는 방식 :D
+
+### 도커 컨테이너 생성 구조
+
+![240818-204430](/posts/19-eks-instroduction/240818-204430.png)
+
+반면에 도커 컨테이너들은 사실상 네트워킹과 데이터들을 공유한다.
+이 점에서는 vm 보다 보안성이 높진 않지만 하나의 서버에 더 많은 컨테이너를 실행할 수 있게 한다.
+
+## Getting Started with Docker
+
+다음은 간단한 ECR 이용 흐름
+
+![240818-204518](/posts/19-eks-instroduction/240818-204518.png)
+
+## Docker containers Management on AWS
+
+- Amazon Elastic Container Service (Amazon ECS)
+  - Amazon's own container platform
+- Amazon Elastic Kubernetes Service (Amazon EKS)
+  - Amazon's manages Kubernetes (open source)
+- AWS Fargate
+  - Amazon's own Serverless container platform
+  - works with ECS and with EKS
+- Amazon ECR:
+  - Store container images
+
+# 2. Amazon ECS
+
+ECS는 실행하는 방식이 두가지 있는데, 우선 EC2 Launch Type 부터 본다.
+
+## Amazon ECS - EC2 Launch Type
+
+- 도커 컨테이너를 AWS에서 런치한다는 뜻은, ECS Task 를 ECS 클러스터에서 실행한다는 것이다.
+- EC2 Launch Type: 이 타입은 우리가 반드시 EC2 인스턴스를 프로비저닝하고, 인프라를 관리해야한다.
+
+  ![240818-205421](/posts/19-eks-instroduction/240818-205421.png)
+
+- 이 인스턴스들을 ECS 클러스터에 등록하기 위해서는 반드시 ECS 에이전트를 실행하고 있어야한다.
+- 이 경우, AWS는 컨테이너 실행과 중지에만 관여한다.
+
+## Amazon ECS - Fargate Launch Type
+
+- 우리가 인프라를 프로비저닝 할 필요가 없다.
+  - EC2 인스턴스를 관리할 필요가 없다는 뜻이다.
+- 서버리스 서비스이다.
+- 우리는 task definition만 정의하면 된다.
+- AWS 는 우리가 정의한 ECS Task(based on the CPU/RAM) 를 실행한다.
+
+![240818-210054](/posts/19-eks-instroduction/240818-210054.png)
+
+- 스케일링을 위해서는 task의 숫자만 높여주면 된다.
+
+## Amazon ECS - IAM Roles for ECS
+
+ECS 에서 활용 가능한 IAM 역할을 소개한다.
+
+![240818-211046](/posts/19-eks-instroduction/240818-211046.png)
+
+- EC2 Instance Profile (EC2 Launch Type에서만 사용 가능):
+  - ECS 에이전트가 사용하는 IAM 역할이다.
+    - ECS Service API를 호출할 수 있다.
+    - 컨테이너 로그를 Cloudwatch로 전송할 수 있다.
+    - 도커 이미지를 ECR 에서 pull 받을 수 있다.
+    - Secrets Manager 혹은 SSM parameter store을 참조할 수 있다.
+
+- ECS Task Role: 위 그림에서 task에 있는 role A, B이다.
+  - task 정의 시 붙일 수 있는 역할이다.
+  - 각 ECS 서비스에 대한 접근 권한을 정의하는 역할이다.
+  - 그래서, 컨테이너가 인스턴스 내에서 실행되면 컨테이너 내부에서 이 역할을 사용해서 ECS 서비스에 필요한 권한을 얻을 수 있게 된다.
+
+## Amazon ECS - Load Balancer Integrations
+
+![240818-211451](/posts/19-eks-instroduction/240818-211451.png)
+
+- 유저들은 로드밸런서에 직접 접근하고, 로드밸런서는 ECS 서비스를 이용하는 구조이다.
+
+원하는 로드밸런서를 사용할 수 있다.
+
+- ALB (애플리케이션 로드밸런서): 대부분의 유즈케이스를 지원한다.
+- NLB (네트워크 로드밸런서): high throuhput/high performance 유즈케이스에만 추천
+  - 혹은 AWS Private Link와 페어로 사용하는 것을 추천
+- Classic Load balancer: 지원은 되지만 추천하지 않음 (no advanced features - no Fargate)
+
+## Amazon ECS - Data Volumes (EFS)
+
+ECS에서의 데이터 영속화는 어떻게 이뤄질까? 마찬가지로 기존 서비스를 활용할 수 있다.
+여러 서비스가 활용 가능한데, 그중 하나가 EFS이다.
+
+- EFS 파일시스템을 ECS 테스크에 마운팅할 수 있다.
+- EC2/Fargate Launch Type 모두에 사용가능하다.
+- 태스크가 어떤 AZ에 있든 EFS 파일시스템의 같은 데이터를 공유할 수 있다.
+- EFS 가 서버리스 시스템이라서, 만약 ECS 로 Fargate를 사용하면 데이터 볼륨까지 모두 서버리스로 이용하게 되는 것이다.
+  - Fargate + EFS = Serverless
+
+![240818-212844](/posts/19-eks-instroduction/240818-212844.png)
+
+- Use cases: persistent multi-AZ shared storage for your containers
+- 노트: S3는 파일시스템으로 마운팅할 수 없다.
+
+# 3. Hands on!
+
+## ECS 클러스터 생성 핸즈온
+
+1. ECS 콘솔에 들어간다.
+2. 클러스터 생성을 클릭.
+  ![240818-213908](/posts/19-eks-instroduction/240818-213908.png)
+
+3. 인프라의 옵션은 Fargate와 EC2 그리고, 외부 데이터센터의 머신을 사용하는 것이 있다. (복수 선택 가능)
+
+ EC2 Launch Type을 추가하면 다음과 같이 마법사가 늘어난다. 인스턴스 설정을 해주면 된다.
+
+![240818-215240](/posts/19-eks-instroduction/240818-215240.png)
+
+![240818-215312](/posts/19-eks-instroduction/240818-215312.png)
+
+4. 이렇게 설정해주면 AutoScaling Group 콘솔에서 생성된 ASG를 확인할 수 있다.
+
+특이한 것은 서비스 생성 시 fargate와 ec2 lauch type 이렇게 두 가지를 골랐는데,
+서비스 인프라의 사용가능한 프로바이더를 보면 세 가지가 있는 것을 확인할 수 있다.
+
+![240818-224103](/posts/19-eks-instroduction/240818-224103.png)
+
+- `FARGATE`: 이 ECS 클러스터에서 인스턴스 시작을 Fargate로 할 수 있다는 뜻이다.
+- 'FARGATE_SPOT': 이 클러스터에서 Fargate task를 spot 모드로 실행할 수 있다는 뜻이다.
+- ASGProvider 타입: EC2 인스턴스를 ASG를 통해 직접적으로 생성할 수 있다는 뜻이다.
+  ![240818-224709](/posts/19-eks-instroduction/240818-224709.png)
+  - Group Size는 ASG 리소스>그룹세부정보>편집 에서 정해줄 수 있다.
+    ![240818-224802](/posts/19-eks-instroduction/240818-224802.png)
+
+## ECS 애플리케이션 실행 핸즈온
+
+1. ECS 콘솔 사이드바에서 Task Definition (태스크 정의) 에 들어가서 Create new task Definition을 누른다.
+  ![240818-225058](/posts/19-eks-instroduction/240818-225058.png)
+
+  - 콘솔 GUI로 기본적인 것들을 설정하는 방법과 json 파일을 이용하는 방법이 있는데, 지금은 간단한 실습이니 콘솔로 진행한다.
+    ![240818-225240](/posts/19-eks-instroduction/240818-225240.png)
+2. 인프라 요구사항 설정하기 (Infrastructure Requirements)
+  ![240818-225845](/posts/19-eks-instroduction/240818-225845.png)
+
+  - 태스크에서 실행될 애플리케이션에 필요한 만큼 CPU와 메모리 크기를 설정해줄 수 있다.
+  - Task 의 IAM Role 도 여기서 설정해줄 수 있는데 (태스크 역할 부분)
+    - 태스크 역할(Task Role)은 태스크 내에서 AWS 의 다른 서비스 접근 권한이 필요한경우 추가,
+    - 태스크 실행 역할(Task Execution Role)은 태스크에서 ECS API를 요청하는데 필요한 것이다. (따로 만들지 않아도 기본적으로 만들어준다.)
+
+3. 컨테이너 설정하기
+  ![240818-230343](/posts/19-eks-instroduction/240818-230343.png)
+  - 컨테이너 이름 설정
+  - 우리는 `nginxdemos/hello` 이미지를 사용할 것이다.
+    Dockerhub에서 확인 가능
+    ![240818-230230](/posts/19-eks-instroduction/240818-230230.png)
+  - 포트 바인딩 설정
+  - 환경변수, 로깅 등 조절 가능
+    ![240818-230457](/posts/19-eks-instroduction/240818-230457.png)
+
+  원하는대로 설정하고 나서 생성해두면된다.
+  이제 만들어둔 task definition으로 task를 생성하자.
+
+4. 클러스터에 태스크 생성하기 - 클러스터에 들어가서 Create(태스크 생성)에 들어간다.
+  ![240818-230940](/posts/19-eks-instroduction/240818-230940.png)
+
+5. 배포 구성 입력하기
+  - 애플리케이션 타입에 서비스와 태스크 두가지가 있는데,
+  - 서비스는 계속 실행하고 있어야 하는 경우 사용하고
+    태스크는 한 번 실행하고 종료시킬 경우 사용한다.
+    ![240818-232133](/posts/19-eks-instroduction/240818-232133.png)
+  - 이 외에는 알맞게 입력하자 :D
+
+  ![240818-232340](/posts/19-eks-instroduction/240818-232340.png)
+
+6. 네트워킹을 설정하고 로드밸런서도 추가해주었다.
+![240818-232610](/posts/19-eks-instroduction/240818-232610.png)
+![240818-232628](/posts/19-eks-instroduction/240818-232628.png)
+
+
+7. 이렇게 생성한 task definition은 서비스 생성시 지정해서 사용할 수 있다.
+  ![240819-000534](/posts/19-eks-instroduction/240819-000534.png)
+
+서비스 생성시 구성은 다음과 같이 했다. (ALB, target group, security group 생성)
+![240819-002021](/posts/19-eks-instroduction/240819-002021.png)
+
+
+왕 됐당.
+처음에 Computing options 를 기본설정인 Capacity provider strategy 의 ASG를 선택해서 프로비저닝이 실패했었는데,
+그 이유인즉슨 내가 task definition에 앱 환경을 Fargate 로 해놓아서 그랬던 것 같다. (내 추측이다.)
+내 예상대로 시작유형을 Fargate로 정해서 제대로 실행할 수 있었다.
+
+Capacity Provider strategy 설명을 콘솔에서 읽었을 땐 바로 이해하기 힘들었는데
+좋은 글을 찾아서 공유 -> [velog: AWS ECS - Capacity Provider를 이용하여 오토스케일링을 쉽게 관리하자](https://velog.io/@dlawlrb/AWS-ECS-Capacity-Provider%EB%A5%BC-%EC%9D%B4%EC%9A%A9%ED%95%98%EC%97%AC-%EC%98%A4%ED%86%A0%EC%8A%A4%EC%BC%80%EC%9D%BC%EB%A7%81%EC%9D%84-%EC%89%BD%EA%B2%8C-%EA%B4%80%EB%A6%AC%ED%95%98%EC%9E%90)
+
+![240819-005132](/posts/19-eks-instroduction/240819-005132.png)
+
+![240819-005246](/posts/19-eks-instroduction/240819-005246.png)
+
+8. 실행이 되고 나면 ASG 엔드포인트에 브라우저로 접속했을 때 다음화면을 볼 수 있었다.
+
+![240819-001807](/posts/19-eks-instroduction/240819-001807.png)
+
+9. 콘솔에서 로그도 확인해볼 수 있었다.
+
+![240819-002303](/posts/19-eks-instroduction/240819-002303.png)
+
+
+오늘은 여기까지
+다음 내용은 ECS의 오토스케일링과 권장 아키텍처다.
