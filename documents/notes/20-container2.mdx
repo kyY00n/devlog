@@ -3,9 +3,9 @@ id: 20
 title: AWS Container (2) - ECS
 date: 2024-08-20
 tags:
-  - Docker
-  - Container
-  - ECS Hands on
+  - ECS
+  - ECR
+  - Hands on - Clean up
 ---
 
 # ECS
@@ -86,3 +86,89 @@ EC2 Launch Type에서 오토스케일링을 사용할 수 있는 방법엔 크�
 ## ECS Scaling - Service CPU Usage Example
 
 ![240822-123134](/posts/20-container2/240822-123134.png)
+
+# Amazon ECS - Solutions Architect
+
+지금부터는 ECS를 이용한 몇가지 솔루션 예시들을 설명할 것이다.
+
+- ECS tasks invoked by Event Bridge
+  : 다음 예시와 같이 이벤트 브릿지 rule 로 ECS 태스크를 실행할 수 있다.
+
+  ![240822-155612](/posts/20-container2/240822-155612.png)
+
+  사용자가 s3 에 오브젝트를 올리면, 해당 오브젝트를 읽어와 프로세싱하고 결과를 dynamoDB에 저장하는데,
+  이는 ECS Task가 권한을 붙여줘야 가능한 것이다.
+
+- ECS tasks invoked by Event Bridge Schedule
+  : 이벤트 브릿지의 스케줄 기능을 이용한 또다른 솔루션이다.
+    한 시간마다 ECS 태스크를 실행하게 만드는 방식을 만들어볼 수 있을 것이다.
+
+  ![240822-163006](/posts/20-container2/240822-163006.png)
+
+- ECS - SQS Queue
+  : 서비스에서 SQS 메시지를 폴링하도록 할 수 있다.
+    메시지가 많아지면, ECS Service Auto Scaling 이 태스크를 새로 만들어 병목을 방지할 수 있다.
+
+    ![240822-163126](/posts/20-container2/240822-163126.png)
+
+- ECS - Intercept stopped tasks using EventBridge
+  : ECS 클러스터에서 태스크가 종료되었다는 이벤트를 트리거 할 수 있다.
+
+  ![240822-163517](/posts/20-container2/240822-163517.png)
+
+  이벤트 브릿지는 다음과 같이 설정할 수 있겠다.
+  ```json
+  {
+      "source": [
+          "aws.ecs"
+      ],
+      "detail-type": [
+          "ECS Task State Change"
+      ],
+      "detail": {
+          "lastStatus": [
+              "STOPPED"
+          ],
+          "stoppedReason": [
+              "Essential container in task exited"
+          ]
+      }
+  }
+  ```
+
+# ECS Clean Up
+
+ECS 클러스터는 cloudformation을 통해서 만들어지기 때문에 스택에서 모든 리소스를 확인하고 한번에 삭제하는 것이 간편하다.
+그렇지 않으면 남아있는 리소스가 있을 수 있다. (실제로 나도 다 삭제한 줄 알았는데 로드밸런서가 남아있었다.)
+
+![240822-164748](/posts/20-container2/240822-164748.png)
+
+![240822-164828](/posts/20-container2/240822-164828.png)
+
+
+- task definition은 과금이 되지 않는다. (정의일 뿐이다.)
+  그래도 삭제하고 싶은 경우 들어가서 등록취소해주면 된다.
+
+  ![240822-173307](/posts/20-container2/240822-173307.png)
+  ![240822-173349](/posts/20-container2/240822-173349.png)
+
+삭제까지 완료 :D
+
+ECS 에 대해 알아봤으니, 짧게 ECR 에 대해서도 짚고 넘어가려한다.
+
+# Amazon ECR
+
+- ECR 은 Elastic Container Registry 의 약자다.
+- AWS에서 도커 이미지를 저장하고 관리할 수 있다.
+- Private/Public 리포지토리가 있다.
+- ECS 와 함께 사용할 수 있고, 이미지는 s3에 저장되도록 구현되어있다.
+
+- 만약 ECS 클러스터에서 ECR 에 대한 접근이 필요한 경우, IAM Role 을 만들어 적용해주어야한다.
+  ![240822-173809](/posts/20-container2/240822-173809.png)
+
+- ECS 는 이미지 취약점 스캔, 버져닝, 이미지 태그, 이미지 라이프사이클 관리 등 이미지 관리 기능을 제공하기도 한다.
+
+---
+
+지금까지 ECS 내용과 핸즈온을 해보고 ECR 내용도 훑어봤다.
+다음 글에서는 EKS 내용을 보는 것으로 :)
