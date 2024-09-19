@@ -1,0 +1,155 @@
+---
+id: 24
+title: rds 인증서가 만료될 수 있다는 사실을 잊었습니다
+date: 2024-08-26
+description: mysql 인증서 만료로 차단된 커넥션 제거하고 알림 설정하기
+tags:
+    - RDS Certificate
+    - MySQL
+    - AWS Notification center
+---
+
+# 문제상황
+
+### 인증서 만료
+
+서비스 api 가 타임아웃으로 500에러를 응답해서 무슨 일인가 하고 급히 로그를 봤더니
+
+```
+[2024-08-26 08:51:21:3082105709][http-nio-8080-exec-14] INFO  z.c.interceptor.LoggingInterceptor - METHOD: GET, URL: /pet-foods, STATUS_CODE: 500, QUERY_COUNT: 0
+[2024-08-26 08:51:22:3082107163][http-nio-8080-exec-5] WARN  o.h.e.jdbc.spi.SqlExceptionHelper - SQL Error: 0, SQLState: HY000
+[2024-08-26 08:51:22:3082107164][http-nio-8080-exec-5] ERROR o.h.e.jdbc.spi.SqlExceptionHelper - HikariPool-1 - Connection is not available, request timed out after 30000ms.
+[2024-08-26 08:51:22:3082107164][http-nio-8080-exec-5] WARN  o.h.e.jdbc.spi.SqlExceptionHelper - SQL Error: 1129, SQLState: HY000
+[2024-08-26 08:51:22:3082107164][http-nio-8080-exec-5] ERROR o.h.e.jdbc.spi.SqlExceptionHelper - null,  message from server: "Host 'xxx.xxx.xxx' is blocked because of many connection errors; unblock with 'mysqladmin flush-hosts'"
+[2024-08-26 08:51:22:3082107164][http-nio-8080-exec-5] ERROR zipgo.common.logging.LoggingUtils - Could not open JPA EntityManager for transaction
+```
+
+mysql 커넥션을 얻는 것에 실패했고, 이 머신의 ip 가 블락됐다는 메시지를 확인할 수 있었다.
+
+우린 rds를 쓰고 있는데 보안그룹은 백엔드 서버만 허용인데다
+단일 서버라서 접속하려면 이 머신에서 하는데 아예 불가능한 상황인 것이었다.
+
+아주 잠깐 무슨일인지 확인하기 위해 rds 보안그룹에서 내 ip로의 접속을 허용하고 rds에 접속해보았지만 다른 에러메시지를 보이며 실패했다.
+
+<img src='/posts/24-mysql-certificate-issue/image.png' width='50%'/>
+
+무슨 뜻인가 했는데 찾아보니 mysql 의 인증서가 만료되었다는 것이었다.
+
+어떻게 인증서 만료를 지금 알 수가 있지 하는 자괴감이 들었지만, 차치하고 빨리 해결해야겠다는 생각으로 콘솔에 접속해보니 만료되었음을 제대로 확인할 수 있었다. :(
+
+![image.png](/posts/24-mysql-certificate-issue/image%201.png)
+
+### 인증서 교체
+
+내가 사용하고 있던 인증서는 `rds-ca-2019` 로 다른 ca 와 달리 자동 서버 인증서 교체를 지원하지 않았다.
+
+그래서 수동으로 기존 ca와 동일한 표준을 유지하는 ca를 선택하고 db 인스턴스를 수정해줬다.
+
+![image.png](/posts/24-mysql-certificate-issue/image%202.png)
+
+재시작 때문에 1-2분 정도 기다린 후에 다시 내 로컬에서 접속했을 땐, 문제없이 성공했다.
+
+### 재시작 이후에도 기존 호스트 접속 불가
+
+음, 근데 재시작해도 ec2에서는 여전히 연결이 안돼서 로그에서 말하는 문제를 직접 해결해야한다고 생각했다.
+
+rds에 mysql client로 접근하기 때문에 로그에 적혀있는 `mysqladmin flush-hosts` 를 실행하는 대신, `FLUSH HOSTS` 문을 실행하기로 했당.
+
+그전에 상황을 더 자세히 알기 위해 현재 connection 정보를 보니 다음 결과를 확인할 수 있었다.
+
+```sql
+SHOW PROCESSLIST; -- 현재 실행 중인 스레드 목록
+```
+
+![image.png](/posts/24-mysql-certificate-issue/image%203.png)
+
+- 5번의 Time은 276일이 넘는 시간을 의미해서 뭔가 하고 찾아봤다.
+    - 5번 스레드는 MySQL의 **event_scheduler** 데몬 스레드이다. event_scheduler는 MySQL의 이벤트 관리 기능을 담당하며, 현재 아무 작업도 처리하고 있지 않음을 나타내는 Waiting on empty queue 상태. 이 스레드가 장기간 실행 중인 것은 정상적인 상황이라고한다.
+- rdsadmin은 rds에서 쓰는 내부관리 사용자
+- admin 은 당시 내 datagrip.
+
+이 테이블만 보면 별문제가 없어보인다
+
+#### FLUSH HOSTS 로 연결정보 초기화하기
+
+```sql
+SELECT * FROM performance_schema.host_cache; -- 호스트 캐시 정보(연결 시도, 실패한 연결 수 등이 포함)를 확인
+```
+
+![image.png](/posts/24-mysql-certificate-issue/image%204.png)
+
+`SUM_CONNECT_ERRORS` 가 `max_connect_errors` 시스템 변수의 값을 초과하면 연결이 차단된다고 하는데, 이 값이 100이었다. (찾아보니 rds에서 `max_connect_errors` 파라미터 기본값이 100이었다)
+
+flush hosts 는 호스트 캐시를 지우고 연결을 초기화하는 명령어라고 한다. 근데 실행해보니 앞으로 없어질 예정이라고 하니 혹시 호스트 캐시를 지울 일이 있으면 직접 테이블을 비워야한다.  (로그 참고)
+
+```sql
+zipgo_prod> FLUSH HOSTS
+[2024-08-26 18:23:26] [HY000][1287] 'FLUSH HOSTS' is deprecated and will be removed in a future release. Please use TRUNCATE TABLE performance_schema.host_cache instead
+[2024-08-26 18:23:26] completed in 24 ms
+```
+
+---
+
+# 추후 문제 방지하기
+
+대시보드를 둘러보니 aws 에서는 3월에 진작 헬스체크 보드의 이벤트를 발송했었다.
+내가 aws 헬스체크 보드에 정기적으로 들어가서 확인해야 했던 것일까?
+
+사실 이번에 겪었던 이슈는 특수한 케이스이고, 이제 교체한 인증서는 자동으로 갱신을 도와주기 때문에 같은 문제는 일어나지 않을 것 같다.
+하지만 비슷한 상황은 벌어질 수 있어서 대비해서 알림설정을 해볼 수 있을 것 같았다.
+
+## Health Dashboard
+
+구글링을 해보니, health dashboard라는 곳에서 Databases requiring certificate update 와 같은 전체 공지를 받아볼 수 있었다.
+
+![image.png](/posts/24-mysql-certificate-issue/image%205.png)
+
+영향받는 리소스도 친절하게 알려준다.
+
+헬스체크 보드 이벤트 알림을 받아야겠다 싶어서 방법을 찾아봤는데, 이벤트브릿지를 직접 설정할 수도 있었지만 Notifications 라는 서비스에서 간편하게 설정하는 방법이 있어서 그걸 해보기로 했다.
+
+![image.png](/posts/24-mysql-certificate-issue/image%206.png)
+
+콘솔에 접속했을 때 오른쪽 상단 알림 아이콘을 누르면 알림을 추가할 수 있는 버튼이 뜬다.
+
+![image.png](/posts/24-mysql-certificate-issue/image%207.png)
+
+버튼을 누르면 Notification center에 접속할 수 있는데, 여기서 알림을 설정할 수 있다.
+
+나는 Quick setup 을 이용해 Event rule을 다음과 같이 설정해주었다.
+
+- Service: Health
+- Event Type: AWS Health Event
+- Region: ap-northeast-2 (seoul)
+
+![](/posts/24-mysql-certificate-issue/2024-09-19-11-34-03.png)
+
+알림을 설정하다보면, Delivery Channel을 추가할 수 있는데, 수단을 추가하는 것은 따로 Delivery Channels 페이지에서 진행해야한다.
+
+![image.png](/posts/24-mysql-certificate-issue/image%208.png)
+
+수단은 세 가지가 있는데, 그 중 이메일을 등록하려면 인증메일을 통해 인증을 거쳐야한다.
+
+![image.png](/posts/24-mysql-certificate-issue/image%209.png)
+
+주의할 점은 나같은 경우 이 인증 메일이 스팸함에 들어와있었고, 그래서 다른 사람도 혹시 이런 경우가 있을 수 있으니 스팸함을 봐야할 것 같다.
+
+![image.png](/posts/24-mysql-certificate-issue/image%2010.png)
+
+인증을 완료하면 다음과 같은 화면을 볼 수 있다.
+
+### 별도 채널 생성하기 - AWS Console Mobile APP
+
+알림 전달 채널은 이메일외에도 AWS Console Mobile App을 통해서도 확인할 수 있다.
+
+앱스토어에서 AWS Console 앱을 다운로드 받은 뒤 로그인, 기기 설정을 해주면 콘솔에서 알람 채널로 선택할 수 있게 된다. (채널 등록은 자동으로 됨; 확인은 Notification center > Delivery Channel 에서 가능)
+
+![](/posts/24-mysql-certificate-issue/2024-09-19-11-29-25.png)
+
+AWS 콘솔 앱은 아주 심플했다.
+
+<img src='/posts/24-mysql-certificate-issue/IMG_2465.png' width='50%'/>
+
+그런데 브라우저와 동일하게 콘솔 앱에서 로그인을 유지할 수 없어 앱을 종료하거나 오랫동안 접속하지 않는 경우 알림을 실시간으로 받아보기는 어려울 것 같다.
+
+콘솔 모바일 앱과 관련한 FAQ 는 이 곳에서 확인해 볼 수 있다. -> https://aws.amazon.com/ko/console/mobile/faqs/
