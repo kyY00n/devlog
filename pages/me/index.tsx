@@ -1,6 +1,8 @@
 import Image from 'next/image';
+import { useDarkMode } from '@/hook/useDarkMode';
 
 export default function Me() {
+  const [theme, handleTheme] = useDarkMode();
   return (
     <>
       <section className="my-10">
@@ -8,7 +10,7 @@ export default function Me() {
       </section>
       <section className="my-5 mb-12 flex justify-center gap-8 items-center flex-wrap">
         <Image
-          src={'/images/profile.jpeg'}
+          src={theme === 'dark' ? '/images/dark-profile.webp' : '/images/profile.jpeg'}
           alt="profile"
           width={150}
           height={150}
@@ -48,11 +50,11 @@ export default function Me() {
           </div>
         </div>
       </section>
-      <section className="mt-12 mb-5">
+      {/* <section className="mt-12 mb-5">
         <h1 className="font-bold text-xl sm:text-2xl font-UhbeeSehyun dark:text-neutral-100">
           Work Experience
         </h1>
-      </section>
+      </section> */}
     </>
   );
 }
