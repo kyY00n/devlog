@@ -10,7 +10,7 @@ export default function Me() {
       </section>
       <section className="my-5 mb-12 flex justify-center gap-8 items-center flex-wrap">
         <Image
-          src={theme === 'dark' ? '/images/dark-profile.png' : '/images/profile.jpeg'}
+          src={theme === 'dark' ? '/images/dark-profile.webp' : '/images/profile.jpeg'}
           alt="profile"
           width={150}
           height={150}
