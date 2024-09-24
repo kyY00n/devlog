@@ -20,7 +20,7 @@ export default function Footer() {
         </a>
       </div>
       <div className="text-sm mt-2 font-uhbeeZziba">휘뚜루마뚜루 - 운가용의 Devlog</div>
-      <div className="text-sm mt-2 font-uhbeeZziba">Copyright © 2023 JiHoon Yoo</div>
+      <div className="text-sm mt-2 font-uhbeeZziba">Copyright © 2024 Kayoung Yoon</div>
     </footer>
   );
 }
