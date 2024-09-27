@@ -1,0 +1,152 @@
+---
+id: 26
+title: Spring PlatformTransactionManager
+date: 2023-10-07
+description: 스프링의 트랜잭션 관리
+tags:
+    - Spring
+    - TransactionTemplate
+    - \@Transactional
+---
+
+# 정의
+
+[PlatformTransactionManager (Spring Framework 6.0.12 API)](https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/transaction/PlatformTransactionManager.html)
+
+PlatformTransactionManager는 스프링의 transaction 인프라 중심부 **인터페이스**다.
+
+애플리케이션에서 PlatformTransactionManager의 API를 직접 쓸 수 있지만 주된 방법은 아니다.
+
+보통 애플리케이션에서는 TransactionTemplate 또는 AOP를 통한 선언적 트랜잭션을 사용한다.
+
+
+> PlatformTransactionManager는 이들보다 lower-level의 API
+TransactionTemplate과 @Transactional 은 모두 내부적으로 PlatformTransactionManager를 사용함.
+> 
+
+이 인터페이스를 구현하고자 한다면, AbstractPlatformTransactionManager 라는 추상클래스를 상속하는 것을 권장한다. AbstractPlatformTransactionManager는 기존에 정의되어있는 전파 방식을 구현하고 트랜잭션 추상화를 잘 구현해놓았다. 이 추상클래스의 서브클래스는 트랜잭션의 상태에 따른 템플릿 메서드를 구현해야한다.
+
+> 트랜잭션 상태: begin, suspend, resume, commit
+> 
+
+JtaTransactionManager는 이 인터페이스의 고전적인 구현체이다.
+
+하지만 보통의 단일 리소스 시나리오에서는 보통 스프링의 특정 트랜잭션 매니저(e.g. JDBC, JPA, JMS)가 사용된다.
+
+- JTA? JMS?
+    
+    https://cognitive.tistory.com/46
+    
+    > JTA, Java Transaction API
+    플랫폼마다 상이한 트랜잭션 매니저들과 애플리케이션들이 상호작용할 수 있는 인터페이스를 정의하고 있다.
+    > 
+    
+    > JMS, Java Message Service
+    자바 프로그램이 네트워크를 통해 데이터를 송수신하는 자바 API이다.
+    자바 메시지 서비스는 API는 두 개 혹은 그 이상의 클라이언트 간 메시지 통신을 위한 자바 메시지 기반 미들웨어 API( 자바 메시지 지향 미들웨어(MOM) API)이다. JMS는 자바 플랫폼, 엔터프라이즈 에디션에 포함되어 있으며, 자바커뮤니티 프로세스의 JSR 914로 개발된 명세서에 의해 정의된다. 자바 메시지 서비스는 자바 플랫폼, 엔터프라이즈 에디션에 기반을 둔 애플리케이션 컴포넌트들끼리 메시지를 생성, 송/수신, 읽기 기능을 제공하는 메시징 표준이다. 분산된 애플리케이션끼리 느슨하게 연결해주고 신뢰성을 보장하며, 비동기 처리가 가능하도록 해준다.
+    > 
+
+# 탄생 배경
+
+스프링에서는 왜 PlatformTransactionManager를 만들게 되었을까? 그 배경을 이해하기 위해서는 다음 문제들을 알아야한다.
+
+## 1. DB에 접근하는 API는 다양할 수 있다.
+
+우리는 JDBC에 친숙하다. JDBC는 Java Database Connectivity의 약자로 자바에서 DB에 접근할 수 있게 정의한 API이다. JDBC는 그 범용성 덕분에 대부분의 데이터베이스에서 JDBC드라이브를 제공한다.
+
+하지만 우리가 다룰 트랜잭션이 나온 커넥션이 JDBC가 아닌 JPA나 JMS의 것일 수도 있다. (Java Transaction API (JTA), JDBC, Hibernate, Java Persistence API (JPA), and Java Data Objects (JDO) 같은 다양한 트랜잭션 API가 있다.)
+
+## 2. 하나의 트랜잭션에서 여러 개의 커넥션을 사용할 수 있다.
+
+말그대로, 애플리케이션에서 하나의 트랜잭션에 여러 개의 자원과 통신할 수 있다. 그렇다면 커넥션이 여러 개가 될 것이고 각각의 트랜잭션을 설정해줘야할 것이다.
+
+이런 이유 때문에 스프링은 DB의 접근할 수 있는 다양한 API를 공통된 방식으로 이용할 수 있고, 하나의 트랜잭션에서 여러 개의 커넥션을 다룰 수 있도록 추상화된 인터페이스와 구현체를 제공한다.
+
+# 어떻게 추상화 되어있을까?
+
+스프링의 트랜잭션 추상화의 핵심은 *Transaction strategy* 이란 개념으로 불린다. Transaction strategy는 PlatformTransactionManager라는 인터페이스로 정의돼있다.
+
+```java
+public interface PlatformTransactionManager extends TransactionManager {
+
+    TransactionStatus getTransaction(@Nullable TransactionDefinition definition)
+			throws TransactionException;
+
+    void commit(TransactionStatus status) throws TransactionException;
+ 
+    void rollback(TransactionStatus status) throws TransactionException;
+}
+```
+
+우리가 선언적/프로그래밍 방식 어떤 것을 사용하든지 PlatformTransactionManager의 구현체가 반드시 필요해진다. 우리는 반드시 DI를 통해 구현체를 정의해줘야한다.
+
+하지만 대부분의 트랜잭션 제공모듈에서 구현체를 제공하고있어 우리는 직접 만들지 않아도 괜찮다.
+
+### Spring jdbc의 DatasourceTransactionManager
+
+> spring jdbc에서는 PlatformTransactionManager의 구현체를 제공한다.
+> 
+
+DatasourceTransactionManager는 하나의 JDBC DataSource에 대한 구현이다.
+
+여기에서는 커넥션을 가져올 때 전통적인 EE 스타일인 `DataSource.getConnection()` 이 아닌 `DataSourceUtils.getConnection(DataSource)` 를 사용해야한다.
+
+commit을 중심으로 살펴볼 수 있는데, 로깅에 적힌 설명을 보면 이해가 쉽다.
+
+```java
+public class DataSourceTransactionManager extends AbstractPlatformTransactionManager
+		implements ResourceTransactionManager, InitializingBean {
+
+	@Override
+	public final void commit(TransactionStatus status) throws TransactionException {
+		if (status.isCompleted()) { // (1)
+			throw new IllegalTransactionStateException(
+					"Transaction is already completed - do not call commit or rollback more than once per transaction");
+		}
+
+		DefaultTransactionStatus defStatus = (DefaultTransactionStatus) status;
+		if (defStatus.isLocalRollbackOnly()) { // (2)
+			if (defStatus.isDebug()) {
+				logger.debug("Transactional code has requested rollback");
+			}
+			processRollback(defStatus, false);
+			return;
+		}
+
+		if (!shouldCommitOnGlobalRollbackOnly() && defStatus.isGlobalRollbackOnly()) { // (3) global transaction의 롤백을 수행하고 local
+			if (defStatus.isDebug()) {
+				logger.debug("Global transaction is marked as rollback-only but transactional code requested commit");
+			}
+			processRollback(defStatus, true);
+			return;
+		}
+
+		processCommit(defStatus); // (4)
+	}
+}
+```
+
+# 추가로 학습하면 좋을 키워드
+
+> 로컬 트랜잭션, 글로벌 트랜잭션, JTA
+> 
+
+[16. Transaction Management](https://docs.spring.io/spring-framework/docs/4.2.x/spring-framework-reference/html/transaction.html)
+
+## Global transactions
+
+글로벌 트랜잭션은 우리가 여러 개의 트랜잭션 리소스를 다룰 수 있게 해준다. 보통 트랜잭션은 관계형 데이터베이스나 메시지 큐에서 만들어지는 경우가 많다. 애플리케이션은 JTA로 글로벌 트랜잭션을 다루지만, JTA는 예외 모델 때문에 모호한 API들이 많다. 또, JTA를 사용하기 위해서는 JNDI를 함께 사용해야하는데 JNDI는 서버 애플리케이션에서만 사용할 수 있기 때문에 재사용성을 현저히 낮춘다.
+
+[초보자를 위한 JNDI](https://hamait.tistory.com/331)
+
+스프링 이전에는 EJB의 CMT(Container Managed Transaction)이 주로 사용됐었다. CMT는 트랜잭션의 선언적 프로그래밍 형대이다. EJB CMT는 트랜잭션에 관련한 JNDI 룩업이 필요 없다. (EJB를 사용하기 위해서 JNDI가 필요하긴하지만..) CMT는 개발자가 자바 코드로 트랜잭션을 관리할 필요를 없앴다. 하지만 CMT에도 결정적인 단점이 있었는데, CMT가 JTA에 묶여있다는 것, 그리고 애플리케이션 서버 환경에서 사용할 수 있다는 점이었다.
+
+## Local Transactions
+
+로컬 트랜잭션은 특정 리소스에서 발생하는 것으로 JDBC 커넥션의 트랜잭션 같은 것이 있다. 로컬트랜잭션은 사용은 더 쉽지만 큰 단점이 하나있다. 바로 로컬 트랜잭션은 여러개의 트랜잭션 리소스를 아우를 수 없다는 것이다. 예를들어서 JDBC 커넥션을 써서 트랜잭션을 관리하는 코드에서는 글로컬 JTA 트랜잭션을 실행할 수 없다. 애플리케이션 서버가 트랜잭션 관리에 포함되어있지 않기 때문에 여러개의 리소스간의 정확성을 보장하기 힘들다. (사실 거의 대부분의 애플리케이션에서는 하나의 트랜잭션 리소스를 사용하기 때문에 상관이 없긴하다.) 다른 단점은 로컬 트랜잭션은 프로그래밍 모델에서 굉장히 **침투적(invasive)**이라는 것이다.
+
+## Spring 프레임워크의 일관된 프로그래밍 모델
+
+스프링은 이러한 글로벌, 로컬 트랜잭션의 단점들을 해결했다. 그로부터 애플리케이션 개발자들은 어떠한 환경에서도 일관된 프로그래밍 모델을 사용할 수 있게 되었다. 코드를 한번만 작성하면, 다른 환경의 다른 트랜잭션 관리 전략에서도 올바르게 작동한다. 대부분의 사용자는 스프링에서 권장하는 **선언적 트랜잭션 관리를 사용한다.**
+
+프로그래밍적 트랜잭션 관리를 선택하면 개발자는 스프링으로부터 추상화된 트랜잭션으로 작업하게 된다. 선언적 모델을 사용하면 개발자들은 트랜잭션 관리에 대한 코드를 아주 적은 양 작성 또는 아예 작성하지 않을 수 있게 되고 그러므로 스프링을 포함한 여러 트랜잭션 API에 의존적이지 않은 코드를 작성할 수 있게 된다.
