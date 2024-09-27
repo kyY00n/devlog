@@ -1,0 +1,354 @@
+---
+id: 25
+title: 테스트코드에서 @Transactional 를 사용하시나요?
+date: 2023-10-08
+description: 네니오
+tags:
+    - JPA
+    - Spring Test
+    - Transactional
+---
+
+이번 글에서는 테스트코드에서 `@Transactional` 을 기본적으로 사용하다가 생긴 문제를 해결하며 배운 것들을 정리해보려한다.
+
+# 문제 상황
+
+## '사료 리뷰'에 '도움이 돼요'를 추가할 수 있다.
+
+지금 내가 개발하고 있는 집사의고민에는 리뷰가 있고, 리뷰에는 사용자가 추가하거나 취소할 수 있는 '도움이 돼요' (SNS의 좋아요랑 유사) 기능이 있다.
+
+엔티티 정의를 다음과 같이, Review 엔티티가 HelpfulReaction 엔티티의 생명주기를 관리할 수 있게 해두었다.
+
+```java
+
+@Entity
+// ...
+public class Review extends BaseTimeEntity {
+    
+    // ...
+
+    @Default
+    @OneToMany(mappedBy = "review", orphanRemoval = true, cascade = {MERGE, REMOVE})
+    private List<HelpfulReaction> helpfulReactions = new ArrayList<>();
+
+    // ...
+
+    public void removeReactionBy(Member member) {
+        // 컬렉션에서 지워진 helpfulReaction 엔티티가 고아객체가 되어 지워지는 것을 기대.
+        helpfulReactions.removeIf(helpfulReaction -> helpfulReaction.getMadeBy().equals(member));
+    }
+}
+```
+
+코드에 주석으로도 써놓았는데, 나는 `removeReactionBy()` 메서드 실행 시 컬렉션에서 지워진 helpfulReaction 엔티티가 고아객체가 되어 데이터베이스에서도 지워지는 것을 기대했다.
+
+기능을 개발하고 나서 다음과 같은 테스트코드를 작성했다.
+
+우리 팀은 개발 초반부터 ServiceTest 라는 인터페이스를 만들어 필요한 어노테이션들을 붙여두고 각 도메인 서비스 테스트 클래스가 `ServiceTest`를 상속하는 방식을 사용했다.
+
+```java
+// ServiceTest.java
+@Transactional
+@SuppressWarnings("NonAsciiCharacters")
+@SpringBootTest(properties = {"spring.sql.init.mode=never"})
+@DisplayNameGeneration(DisplayNameGenerator.ReplaceUnderscores.class)
+public abstract class ServiceTest {
+
+}
+```
+
+위 방식은 곧 테스트 클래스에 Transactional 어노테이션이 붙어있는 것과 동일해서
+
+이 글에서는 아래와 같이 어노테이션을 붙여서 원래의 테스트를 작성해봤다.
+
+```java
+@Transactional
+class ReviewsServiceTest {
+
+    @Test
+    void 도움이_돼요를_취소할_수_있다() {
+        //given
+        PetFood 식품 = petFoodRepository.save(모든_영양기준_만족_식품_만들기(브랜드));
+        Member 작성자 = memberRepository.save(무민());
+        Review 리뷰 = reviewRepository.save(리뷰_만들기(식품, 작성자));
+
+        Member 다른회원 = memberRepository.save(멤버_이름("무지"));
+
+        리뷰.reactedBy(다른회원);
+        reviewRepository.save(리뷰);
+
+        //when
+        reviewService.removeHelpfulReaction(다른회원.getId(), 리뷰.getId());
+
+        //then: 리뷰를 DB에서 다시 조회했을 때, 삭제한 helpfulReaction이 남아 있지 않은 것을 검증
+        Review 저장된_리뷰 = reviewRepository.getById(리뷰.getId());
+        assertThat(저장된_리뷰.getHelpfulReactions())
+                .extracting(HelpfulReaction::getMadeBy)
+                .noneMatch(member -> member.equals(다른회원));
+    }
+}
+```
+
+
+이 테스트를 돌렸을 때, 찍히는 sql에서 review 와 관련한 쿼리를 보면 delete 쿼리가 없는 것을 볼 수 있다.
+
+![240927-171134](/posts/25-transactional-in-test/240927-171134.png)
+
+그렇다. '도움이돼요'를 삭제하는 기능을 테스트 했는데 delete 쿼리가 날아가지 않는 문제가 있었다.
+
+사실 Review 엔티티를 봤을 때 이미 눈치챈 사람이 있을지도 모른다.
+
+하이버네이트는 JPA 명세와 달리 orphanRemoval가 cascade 옵션에 의존적이어서,
+cascade가 ALL 이 아니면 orphanRemoval이 동작하지 않는 문제가 있고
+
+그렇기 때문에 아무리 Review 엔티티에서 HelpfulReaction 을 제거해도 delete 쿼리가 발생하지 않았다.
+
+하이버네이트의 버그에 대해서는 이 글에서 깊게 다루지 않으니 이 내용이 궁금하면
+당시 내가 [PR](https://github.com/woowacourse-teams/2023-zipgo/pull/365)에 걸어둔 링크를 보면 좋을 것 같다.
+
+## 진짜 문제
+그랬구나.. 근데 내가 왜 몰랐을까?
+
+바로 테스트가 통과했기 때문이다! (((악)))
+
+![240927-171418](/posts/25-transactional-in-test/240927-171418.png)
+
+이렇게 테스트가 통과해버려서 나는 내 의도와 달리 delete 쿼리가 날라가지 않는다는 사실을 배포 후 데모데이 직전에 알게되는 참사를 겪었다.
+검증하려고 테스트를 작성했는데 되려 테스트만 믿었다가 단순한 기능에 버그를 만들어버렸다.
+대체 왜 이런 일이 발생했을까?
+
+---
+
+# `@Transactional`
+
+
+"동일 스프링 트랜잭션" 안에 있는 경우 영속성 컨텍스트는 트랜잭션 내에서 **캐싱된 엔티티를 우선적으로 사용**하기 때문에
+
+select 쿼리가 발생하더라도 새로 조회한 엔티티가 아니라 영속성 컨텍스트에 이미 존재하는 엔티티를 반환한다.
+
+즉, 위 테스트에서는 내가 컬렉션에서 helpfulReaction을 지운 캐싱된 Review 엔티티로 검증부를 실행하게 된 것이다.
+
+```java
+Review 리뷰 = reviewRepository.save(리뷰_만들기(식품, 작성자));
+
+//then
+Review 저장된_리뷰 = reviewRepository.getById(리뷰.getId()); // 영속성 컨텍스트에 캐싱되어있던 `리뷰` 와 동일..
+assertThat(저장된_리뷰.getHelpfulReactions())
+        .extracting(HelpfulReaction::getMadeBy)
+        .noneMatch(member -> member.equals(다른회원));
+```
+
+이는 `EntityManager.contains(Entity)` 메서드를 실행해서 보다 정확히 확인할 수 있었다.
+
+> The contains() method can be used to determine whether an entity instance is managed in the current persistence context.
+
+> The contains method returns true:
+>   - If the entity has been retrieved from the database or has been returned by getReference, and has not been removed or detached.
+>   - If the entity instance is new, and the persist method has been called on the entity or the persist operation has been cascaded to it.
+
+> The contains method returns false:
+>   - If the instance is detached.
+>   - If the remove method has been called on the entity, or the remove operation has been cascaded to it.
+>   - If the instance is new, and the persist method has not been called on the entity or the persist operation has not been cascaded to it.
+
+위 메서드에 detached 된 상태의 엔티티를 넣으면 false 가 나온다.
+
+그러니 다시 조회를 해왔을 때, 기존에 가지고 있던 `리뷰` 가 참조하는 객체가 detached 상태가 아니라면 true가 나올 것이다.
+
+```java
+@Transactional
+class ReviewServiceTest {
+
+    @PersistenceContext
+    private EntityManager entityManager;
+
+    @Test
+    void 도움이_돼요를_취소할_수_있다() {
+        // ...
+        Review 리뷰 = reviewRepository.save(리뷰_만들기(식품, 작성자));
+
+        // ...
+        Review 저장된_리뷰 = reviewRepository.getById(리뷰.getId());
+        
+        assertThat(entityManager.contains(리뷰)).isFalse(); // 테스트에서 바라는 것은 
+    }
+}
+```
+
+
+![240927-185107](/posts/25-transactional-in-test/240927-185107.png)
+
+역시나 entityManager.contains()의 값이 true 이기 때문에 테스트를 통과하지 못한다.
+
+그러면 도움이돼요가 취소되는지를 제대로 확인하는 테스트는 어떻게 짤 수 있을까?
+
+## `@Transactional`을 지우면 될까?
+
+```java
+@SpringBootTest
+// @Transactional 제거
+public class ReviewsServiceNoTransTest {
+    @Test
+    void 도움이_돼요를_취소할_수_있다_Transactional_제거() {
+        //given
+        PetFood 식품 = petFoodRepository.save(모든_영양기준_만족_식품(브랜드));
+        Member 작성자 = memberRepository.save(무민());
+        Review 리뷰 = reviewRepository.save(리뷰(식품, 작성자));
+
+        Member 다른회원 = memberRepository.save(멤버_이름("무지"));
+
+        리뷰.reactedBy(다른회원);
+        reviewRepository.save(리뷰);
+
+        //when
+        reviewService.removeHelpfulReaction(다른회원.getId(), 리뷰.getId());
+
+        //then
+        Review 저장된_리뷰 = reviewRepository.getById(리뷰.getId());
+        
+        assertThat(저장된_리뷰.getHelpfulReactions())
+                .extracting(HelpfulReaction::getMadeBy)
+                .noneMatch(member -> member.equals(다른회원));
+    }
+}
+```
+
+![240927-185340](/posts/25-transactional-in-test/240927-185340.png)
+
+어노테이션이 없으면 테스트를 아우르는 트랜잭션이 없기 때문에, 리포지토리 혹은 트랜잭션이 선언된 서비스 단위로 트랜잭션이 실행된다.
+
+`리뷰.reactedBy(다른회원);` 를 호출할 때는 포함되는 트랜잭션이 없는 상태가 된다.
+
+트랜잭션이 종료되면서 **영속성 컨텍스트도 닫히기 때문에**, 다음 줄에서 지연 로딩을 시도했을 때 LazyInitializationException이 발생하게된 것이다.
+
+# `TransactionTemplate`
+
+우리는 하나의 테스트 메서드에서 트랜잭션을 나누고 싶을 때 `TransactionTemplate`을 써볼 수 있다.
+
+
+TransactionTemplate과 `@Transactional` 은 둘 다 내부적으로 `PlatformTransactionManager`를 사용해 트랜잭션을 구현한다.
+
+`PlatformTransactionManager에 대한 자세한 내용은 앞에 썼던 글에서 확인할 수 있다.
+
+```java
+@Test
+void 도움이_돼요를_취소할_수_있다_Transactional_제거() {
+    PetFood 식품 = petFoodRepository.save(모든_영양기준_만족_식품(브랜드));
+    Member 작성자 = memberRepository.save(무민());
+    Member 다른회원 = memberRepository.save(멤버_이름("무지"));
+
+    // TransactionTemplate 로 명시적 트랜잭션 선언
+    TransactionTemplate transactionTemplate = new TransactionTemplate();
+    transactionTemplate.setTransactionManager(transactionManager);
+
+    // 도움이 돼요 추가하는 given 부분을 하나의 트랜잭션으로 묶기
+    Review 리뷰 = transactionTemplate.execute(status -> {
+        Review review = reviewRepository.save(리뷰(식품, 작성자));
+        review.reactedBy(다른회원); 
+        reviewRepository.save(review);
+        return review;
+    });
+    //..
+}
+```
+
+마찬가지로 밑의 검증부에서도 Lazy Loading을 필요로 하므로 추가해준다.
+
+```java
+@Test
+void 도움이_돼요를_취소할_수_있다_Transactional_제거() {
+    // ...
+
+    //when
+    reviewService.removeHelpfulReaction(다른회원.getId(), 리뷰.getId());
+
+    //then
+    transactionTemplate.executeWithoutResult(status -> {
+        Review 저장된_리뷰 = reviewRepository.getById(리뷰.getId());
+        assertThat(저장된_리뷰.getHelpfulReactions()) // Lazy Loading !
+                .extracting(HelpfulReaction::getMadeBy)
+                .noneMatch(member -> member.equals(다른회원));
+    });
+}
+```
+
+자 이렇게 `@Transactional` 을 없앰으로써 같은 엔티티를 다시 조회하는 로직을 수행하고
+
+이로부터 발생한 부수효과를 해결했다.
+
+우리가 원했던 것은 결국, 내가 만든 기능에 버그가 있으니 테스트가 실패하는 것이었는데
+
+제대로 테스트가 실패하는지 보자.
+
+![240927-193749](/posts/25-transactional-in-test/240927-193749.png)
+
+실패해줘서 고마운 테스트는 네가 처음이야..
+
+아까 글 위에 써놨듯, known issue 를 방지하기 위해 cascade 옵션을 `ALL` 로 바꿔주면!
+
+```java
+// Review.java
+@Default
+@OneToMany(mappedBy = "review", orphanRemoval = true, cascade = ALL)
+private List<HelpfulReaction> helpfulReactions = new ArrayList<>();
+```
+
+![240927-193919](/posts/25-transactional-in-test/240927-193919.png)
+
+기능이 제대로 동작하는 것을 확인할 수 있었다 :D.
+
+# 더 간단한 방법: `entityManager.clear()`
+
+그런데 사실..
+
+생각해보니까 영속성 컨텍스트에 캐싱된 녀석이 문제를 일으킨거라 캐시만 날려주면 `@Transactional` 을 그대로 사용해도 될 것 같아 실험해봤다.
+
+```java
+@Test
+void 도움이_돼요를_취소할_수_있다() {
+    //given
+    PetFood 식품 = petFoodRepository.save(모든_영양기준_만족_식품(브랜드));
+    Member 작성자 = memberRepository.save(무민());
+    Review 리뷰 = reviewRepository.save(혹평리뷰(식품, 작성자));
+
+    Member 다른회원 = memberRepository.save(멤버_이름("무지"));
+
+    리뷰.reactedBy(다른회원);
+    reviewRepository.save(리뷰);
+
+    //when
+    reviewService.removeHelpfulReaction(다른회원.getId(), 리뷰.getId());
+    entityManager.clear(); // 이 부분 추가
+
+    //then
+    Review 저장된_리뷰 = reviewRepository.getById(리뷰.getId());
+    assertThat(저장된_리뷰.getHelpfulReactions())
+            .extracting(HelpfulReaction::getMadeBy)
+            .noneMatch(member -> member.equals(다른회원));
+}
+```
+
+이렇게 하면 다시 리뷰를 조회해오는 코드가 실행되면 우리가 의도한대로 DB에서 읽어온 새로운 객체로 검증할 수 있게 된다.
+
+결론적으로는 영속성컨텍스트를 때에 따라 잘 비워줄 수 있어야하는 것 같다..
+
+---
+
+# 정리
+
+- 테스트 메서드에서 `@Transactional` 을 사용하면 검증부 로직이 기대와 다르게 동작할 수 있다.
+
+    따라서 어노테이션을 사용한다면, 트랜잭션 범위에 반드시 유의해서 테스트 코드를 작성해야한다.
+
+- `@Transactional` 사용 시 필요에 따라 영속성컨텍스트를 비워줄 수 있다.
+
+- 만약 `@Transactional` 을 쓰지 않고 트랜잭션을 범위를 지정하고 싶은 경우 `TransactionTemplate` 을 사용할 수 있다.
+
+
+이 일을 겪고 나서 테스트가 은탄환이 아니라는 사실에 크게 공감하게 되었고,
+테스트를 누가 어떻게 작성하느냐에 따라 그 테스트의 신뢰도도 천차만별이 될 수 있다는 생각이 들었다.
+
+그동안 비슷한 테스트를 기계적으로 짜면서, 속도가 빨라지고 테스트에 대한 거부감은 완전히 없앴지만
+이번 기회에 많이 반성하고 배우게 된 것 같다.
+
+팀원들에게도 `@Transactional` 을 테스트에서 조심히 써야한다고 전달하고 앞으로 어떻게 해야할지 상의를 해보면 좋을 것 같다.
