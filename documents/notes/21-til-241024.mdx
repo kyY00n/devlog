@@ -1,0 +1,55 @@
+---
+id: 21
+title: 241024 TIL
+date: 2024-10-24
+tags:
+  - Java Character
+  - Printable ASCII
+---
+
+# Character.isLetterOrDigit(char c)
+
+https://leetcode.com/problems/valid-palindrome/description/
+
+캐릭터 래퍼클래스에 정적메서드로 제공되는 녀석이 있었다! 이거 알아두면 문자열 풀 때 많이 써먹을 수 있을 것 같다. 구현은 어떻게 돼있는지 보자.
+
+```java
+public static boolean isLetterOrDigit(char ch) {
+    return isLetterOrDigit((int)ch);
+}
+
+public static boolean isLetterOrDigit(int codePoint) {
+    return ((((1 << Character.UPPERCASE_LETTER) |
+        (1 << Character.LOWERCASE_LETTER) |
+        (1 << Character.TITLECASE_LETTER) |
+        (1 << Character.MODIFIER_LETTER) |
+        (1 << Character.OTHER_LETTER) |
+        (1 << Character.DECIMAL_DIGIT_NUMBER)) >> getType(codePoint)) & 1)
+        != 0;
+}
+```
+
+## isLetterOrDigit에 modifier letter가 포함되는데..
+
+처음에 modifier letter가 특수문자처럼 느껴져서 저 메서드를 쓰면 안 될 것 같다고 생각했었다.
+
+그런데 입력 제한조건에 printable ASCII 로만 이뤄져있다는 항목을 다시 보게 됐다.
+자세히 보지 않고 넘어갔었는데 찾아보니 정확한 범위가 있었다.
+
+> **Constraints:**
+> 
+> - $1 <= s.length <= 2 * 105$
+> - `s` consists only of printable ASCII characters.
+
+### Printable ASCII
+
+> Codes 33 through 126 (decimal) are printable graphic characters.
+> 
+
+! 부터 ~ 까지 (그런 말은 없지만 키보드에 있는 문자들과 동일한 것 같다.) 의 특수문자만 포함
+
+https://www.ascii-code.com/characters/printable-characters
+
+결론적으로, modifier letter는 printable ASCII 가 아니기 때문에 입력으로 들어오지 않게된다.
+
+따라서 해당 메서드 사용해서 문제 풀이 가능.

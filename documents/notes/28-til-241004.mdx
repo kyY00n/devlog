@@ -1,0 +1,82 @@
+---
+id: 28
+title: 241004 TIL
+date: 2024-10-04
+tags:
+  - slash23 
+---
+
+# 영상 요약
+
+오늘은 토스 코테 전에 재미있었던 영상을 다시 한 번 보는 시간을 가졌다.
+
+대단한 걸 하진 않았고.. 영상을 간단히 요약 정리해봤다.
+
+---
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/SF7eqlL0mjw?si=BC3pBKv4qLueajY5" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+
+- 메시지 브로커 (**중복 전송을 없애기 위한**)
+    - UDP multicast
+    - Kafka - 대중적, 처음에 시도해보기 좋음
+        - 다만 n 개의 컨슈머에게 브로드캐스트 하기 위해서는 컨슈머 그룹을 n개 두는 식으로 구현해야함
+    - Redis pub/sub - 메시지를 받는 즉시 컨슈머에게 발송, 컨슈머 없을 경우 메시지는 버려진다.
+- 메시지 브로커를 사용하면 지연시간은 높아진다. 지연시간이 중요한 솔루션의 경우 메시지 브로커를 사용하고 싶다면 redis pub/sub 을 사용할 수 있다. (개발자 입장, udp multicast 는 네트워크 설정 때문에 배제 했다는데 그 이후에도 아예 시도해보지 않은 것 같아서 의문이 들긴 했다.)
+- 아무리 메시지 발송이 빠른 메시지 브로커를 찾았다고 해도, 컨슈머가 소켓 버퍼를 빠르게 비우지 못하면 지연은 늘어나게 된다.
+    - 컨슈머의 처리 속도를 높이기 위해서, 수신 버퍼를 읽는 스레드가 하는 일을 최소화
+    - 비즈니스 로직(특히 Blocking I/O는 반드시!)은 별도 스레드에서 처리하도록 한다.
+
+- Spring redis template - lettuce 라는 기본 redis client 사용 - luttuce는 netty를 사용해 네트워크 통신을.
+- netty의 채널은 소켓을 추상화한 레이어, 커넥션이 맺어진 이후 eventloop 에 등록된다.
+    - event loop 이 바로 수신버퍼의 데이터를 읽어들인다.
+- NIO event loop의 경우
+    1. run 실행
+    2. select 버퍼 데이터 확인
+    3. read 읽기
+    4. decode 변환
+    5. notify 알림
+- event loop 이 수신버퍼를 읽은 다음에, 비즈니스 처리는 멀티스레드로 처리
+
+→ 문제: 멀티스레드로 처리하는 경우 비즈니스 처리의 순서 보장이 X
+
+- EventLoopGroup 을 만들고 EventLoop 큐를 만들었음
+    - 그래서 Hash(종목코드) % N 로 해당하는 이벤트루프그룹에 요청을 추가 → 같은 종목코드의 요청은 순서를 보장
+
+→ 문제: 비즈니스로직 전 종목코드를 읽어내야하기 때문에 요청을 객체로 변환해야했는데 이 과정이 지연의 원인이 됨
+
+- Redis Pub/sub에서 제공하는 채널을 사용.
+    - 아예, redis pub/sub 이전에 **수신부에서 보낼 때**부터, ‘채널’을 나누어 전송
+        - 같은 종목의 정보는 같은 채널에 전송되겠지.
+    - 그리고 처리부에서 요청에 대한 eventloopgroup 을 정할 때, 어떤 채널에서 전송되었는지를 확인하면 된다.
+- EventLoop 구현
+    - ThreadPoolTaskExecutor 의 corePoolSize랑 maxPoolSize 를 1로 정하면 큐처럼 사용 가능.
+    - 큐가 가득 찼을 때: DiscardOldestPolicy 사용
+- EventLoopGroup 구현
+    - `List<ThreadPoolTaskExecutor>`
+    - 길이 = eventloop의 갯수
+    - eventloop이 많아지면 context switching이 많아져 성능이 떨어지기 때문에 갯수를 최대한 줄이려고 했다.
+    - 하지만 무조건 갯수를 줄이는 것이 좋은 것이 아님 back pressure 가 발생하기 때문이다.
+    - 따라서 최적 갯수를 찾기 위해 성능 테스트 진행 후 값을 책정.
+- eventloop의 갯수를 줄이기 위해서는 → 하나의 Eventloop 가 더 효율적으로 많이 일해야하도록 해야함
+    - 다음 세 방법을 적용
+        1. Non-blocking I/O 사용: 마지막에 데이터 저장하는 로직을 비동기로 처리, eventloop 가 더이상 저장 i/o 완료를 기다리지 않고 다음 작업을 처리할 수 있도록 함.
+        2. Local Cache 사용: 데이터 조회는 Nonblocking io를 사용할 수 없었음, 따라서 도입한 것이 로컬 캐시. 로컬캐시에서 먼저 데이터를 읽게 해서 i/o 를 최소한으로 했다. (로컬캐시는 jvm 메모리니까 .
+        3. 무거운 작업을 위한 별도 EventLoopGroup 사용: 기존의 eventloopgroup 내의 eventloop 가 blocking 당하는 것을 방지.
+- 트래픽이 늘어남에도 처리량이 더 이상 올라가지 않는 지점을 만나게 되었다.
+    - Socket 수신 버퍼의 속도를 직접 확인해봤을 때
+        
+        ```bash
+        netstat -na | grep <포트번호> 혹은 ss -t dst:<포트번호>
+        ```
+        
+        Recv-Q > 0 이 지속되는 경우 → 수신 버퍼 읽기가 느린 것임
+        
+    - 이를 해결하기 위해 시도할 수 있는 것
+        1. NioEventLoop 로직 확인: 데이터 변환, 객체 생성, 로깅 등 작은 부분이라도 다른 스레드에게 위임해야함
+        2. CPU Profiling: 불필요한 스레드를 제거하거나 개수를 줄여서 context switching을 줄인다.
+            
+            e.g. Spring의 Tomcat Thread 갯수를 1로 줄일 수 있다.
+            
+        3. NioEventLoop를 여러개 사용하기: 개수를 늘려서 병렬로 사용해볼 수 있다.
+            
+            위의 경우에서는 ReactiveRedisTemplate을 여러 개 생성함으로써 NioEventLoop을 늘릴 수 있었음

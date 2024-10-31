@@ -1,0 +1,130 @@
+---
+id: 25
+title: 241016 TIL
+date: 2024-10-16
+tags:
+  - Github Actions
+  - Why should we know to implement 'sorting'?
+---
+
+# Github Actions 워크플로가 실행되지 않는다. [해결]
+
+- 깃헙 액션 트리거 안되는 때가 따로 있나? 작은 실수일 것 같은데 못찾겠다.
+    - 이거는 우선순위 낮게 :(
+        
+## 알고보니 Syntax Error
+
+트리거 되지 않은 게 아니라 그냥 실패한거였다.
+
+근데 돌아가고 실패한게 아니라 아예 실행되지 않은 것.
+
+워크플로가 syntax error를 포함하면 pr checks 에서 보이지 않는다. Actions 리스트에서 실패한 것은 확인 가능 :)
+
+# Elementary sort
+
+- 정렬이 계속 나오는 것 같아서 정렬 복습
+- 정렬을 공부해야하는 이유: 왜 sort() 함수를 쓰는 걸로 끝내면 안되는거야? → 기업에서는 수많은 아주 커다란 데이터를 정말 많이 정렬해야한다.
+    정렬과 함께 살아가는 엔지니어들. 더 나은 엔지니어가 되기 위해서 정렬을 공부해야한다.
+
+## Bubble sort
+
+- bubbling up the largest value using multiple pass through
+- ***bubbling up: 물이 끓을 때 공기 기포가 수면 위로 떠오르는 현상***
+- 포인터를 옮겨가면서 가장 큰 수를 찾고, 뒤로 두는게 bubbling up이랑 비슷해서.
+    - 뽀 → 글 →  뽀 → 글
+- TC: $O(n^2)$
+
+```java
+public static int[] bubblesort(final int[] array) {
+    // quadratic time
+    for (int i = 0; i < array.length; i++) {
+        for (int j = 0; j < array.length - 1 - i; j++) { // 뒤에서 i번째까지는 이미 고정돼있으니 계산할 필요가 없다.
+            // i만큼 빼지 않으면 더 많이 연산하게된다.
+            if (array[j] > array[j + 1]) {
+                int temp = array[j + 1];
+                array[j + 1] = array[j];
+                array[j] = temp;
+            }
+        }
+    }
+    return array;
+}
+```
+
+## Selection Sort
+
+- insert minimum value in the front
+- → 가장 작은 애를 찾자 → 가장 작은 애 선택! 앞으로 보내!
+
+```java
+public static int[] insertionsort(final int[] array) {
+    for (int i = 0; i < array.length; i++) {
+        int minIdx = i;
+        for (int j = i + 1; j < array.length; j++) {
+            if (array[minIdx] > array[j]) {
+                minIdx = j;
+            }
+        }
+        int temp = array[i];
+        array[i] = array[minIdx];
+        array[minIdx] = temp;
+    }
+    return array;
+}
+```
+
+## Insertion sort
+
+> 거의 정렬이 되어있을 때 최적의 시간복잡도를 보인다.
+> 
+
+한번 움직일 때마다 앞에 있는 배열은 항상 정렬 상태를 유지한다.
+
+https://youtu.be/8oJS1BMKE64?si=q2UvD6Ft3PQfeidt
+
+# Efficient sort - $O(nlogn)$
+
+## Merge Sort
+
+- divide and conquer → logarithm time
+- I will use recursion to implement merge sort
+- merge, mergeleft, mergeright
+
+이렇게 구현했따.
+
+```java
+public static int[] mergesort(final int[] array) {
+    if (array.length == 1) {
+        return array;
+    }
+    int mid = array.length / 2;
+    return merge(
+            mergesort(copyOfRange(array, 0, mid)),
+            mergesort(copyOfRange(array, mid, array.length))
+    );
+}
+
+private static int[] merge(final int[] left, final int[] right) {
+    int[] merged = new int[left.length + right.length];
+    int l = 0, r = 0;
+    int i = 0;
+    while (l < left.length && r < right.length) {
+        if (left[l] < right[r]) {
+            merged[i++] = left[l++];
+            continue;
+        }
+        merged[i++] = right[r++];
+    }
+    while (l < left.length) {
+        merged[i++] = left[l++];
+    }
+    while (r < right.length) {
+        merged[i++] = right[r++];
+    }
+    return merged;
+}
+```
+
+## Quick Sort
+
+- also divide and conquer
