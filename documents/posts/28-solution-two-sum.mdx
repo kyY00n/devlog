@@ -1,0 +1,177 @@
+---
+id: 28
+title: Array - Two Sum (Easy)
+date: 2024-10-08
+description: Very basic of problem solving
+tags:
+  - Leetcode
+  - Step by step
+---
+
+This article is about how to solve a common PS problem step-by-step.
+Let's get start!
+
+> FYI: 표현 in the middle of the article is a note for helpful expressions in the coding interview.
+
+---
+
+# Step 1: Verify the constraints
+
+- Are all the numbers positive, **or** can there be negatives?
+    - Can there be negatives in the array?
+- **Are there** duplicate numbers in the array?
+- **Will there always be a solution** available?
+    - What do we return if there’s no solution?
+- Can there be multiple pairs **that add up to the target?**
+    - No, only one pair of numbers will add up to the target → then we just have to find one pair of indices.
+
+# Step 2: Write out some test cases
+
+- [1, 3, 7, 9, 2], t = 11 → the answer should be [3, 4].
+    - In this particular case, the answer that we return will be three and four, which represent the indices.
+
+Now, we need to think about those other different test cases or edge cases where we might receive an array and a target where **there is no possible solution**. So let’s do that now.
+
+- [1, 3, 7, 9, 2], t = 25 → null
+    - The first thing that we want to think of is to repeat this same array one, three, seven, nine, and two, except our target is 25.
+    - We know that there is **no** **po**ssible **an**swer inside this array where there are two numbers that add it.
+- [ ] (empty array), t = 1 → null
+    - Another different edge case (that also captures this null case) **is going to be** what happens if we receive an empty array as well as any target value.
+    - In this case, we’ll also return null because there are not even two values to add together.
+- [5], t = 5 → null
+    - For the array having one element, we’ll also return null.
+- [1, 6], t = 7 → [0, 1]
+    - Maybe we just figured out a really obvious answer where there are only two numbers inside of the array we receive, and the target **is going to be** the sum of those two values.
+    - Then, we can return [0, 1] as the answer.
+
+So, this is enough for our edge cases, I think. (to help us actually start coming up with the solution.)
+
+# Step 3: Figure out a solution without code
+
+> This is a very crucial step because what we’re doing here is thinking about coming up with a working solution before we get bogged down by any technical details.
+Think of a working logical solution for how I might solve this question if I am just asked this question out of the blue.
+> 
+
+<aside>
+💡
+
+working non-optimal solution > nonworking optimal solution
+
+</aside>
+
+- Well, the most obvious way is to try every single possible combination of pairs that exists inside the array.
+    - What we can do is we would think if I want to try out **every single possible pair of numbers.**
+    - We can easily get a solution by keeping track of a number and iterating other numbers → We’ll be using two-pointer
+
+## Two Pointer
+
+### 표현
+
+1. the value of [pointer]: The value that is indicated by the pointer
+2. [array name] at [pointer]: The value at the index of the array (?)
+3. **reach** to the end of the array = **hit** the end of the array
+
+- You initialize one pointer. $P_1$ that points to some value
+- I **want to** test every possible combination **that involves** the value of $P_1$.
+- I will use this formula to know whether or not we have the correct pair.
+    - The number we’re looking for is equal to our target minus the value of $P_1$
+    - Then, we just traverse the array with $P_2$ and check if the value of $P_2$ is equal to $\text{target} - P_1$
+
+- Three is equal to ten? No, it’s not. So we want to **move** $P_2$ **forward** **by one**.
+    - 마찬가지인 값일 때: So we can move $P_2$ forward **once again**.
+    - 끝까지 도달했을 때: So we’ve reached now the end of the array. There’s no more numbers to test. → **What this means** is that there is no possible solution where one is part of the pair that add up to the target value.
+    - So what we do is that we move $P_1$ forward and reset $P_2$ as well.
+
+- We have found the position of the pairs that we need.
+    - $P_1$ and $P_2$, which of course if going to be equal to three and four. And this is our working solution.
+    - The answer is going to be [ $P_1$, $P_2$ ]
+
+# Step 4: Write out our solution in code
+
+## Writing a brute force solution
+
+```java
+class Solution {
+		public int[] twoSum(int[] nums, int target) {
+				if (nums.length() < 2) {
+						return null;
+				}
+				for(int p1 = 0; p1 < nums.length() - 1; p1++) {
+						int numberToFind = target - nums[p1];
+						for(int p2 = p1 + 1; p2 < nums.length(); p2++) {
+								if (nums[p2] == numberToFind) {
+										return new int[]{ p1, p2 };
+								}
+						}
+				}
+				return null; // no solution
+		}
+}
+```
+
+# Step 6: Test our code with our test cases
+
+## 표현
+
+- The loop closes, we reach the end of this `for` loop and we now end this iteration.
+
+# Step 7: Analyze Time & Space Complexity
+
+## Time complexity
+
+$O(N^2)$ → Quadratic time complexity
+
+is not the best for our given problem. 
+
+## Space complexity
+
+$O(1)$ → Constant
+
+## How can we optimize the time complexity?
+
+Space complexity is the best, and this can be a good hint that maybe you can consume more resources in the one that’s much better.
+
+In this case, **we can utilize more space in order to bring down the time complexity.**
+
+# Step 8: Optimize our solution
+
+Now, when we’re trying to figure out what each for loop is doing, we want to keep track of it on the side just so that we understand what’s happening.
+
+So logically, what this first for loop does is initializes some pointer $P_1$ and using $P_1$ it calculates the `numberToFind`, and this is being the opposing pair.
+
+So here we can see that what first-loop doing is really just figuring out the opposing `numberToFind` value that we need.
+
+second for loop compares the value at the array. So `nums` at $P_2$ and it checks if it’s equal to `numberToFind`.
+
+But let’s think about the second for loop. **The only reason** we need the second for loop at all other than to perform the check **is** because our `numberToFind` only lives in **this instance iteration** of the for loop.
+
+We don’t actually **keep this number to find value** once $P_1$ moves on because we recalculate it. → **This is very wasteful.**
+
+Instead, what we want to do is to leverage a hash map in order to store this somewhere so that our $P_1$ can move on without having to do all of these additional checks.
+
+Let’s utilize hash map.
+
+I’ll store `numberToFind` as a key, and the index as value.
+
+```java
+class Solution {
+		public int[] twoSum(int[] nums, int target) {
+        Map<Integer, Integer> numberToIndex = new HashMap<>();
+
+        for(int p = 0; p < nums.length; p++) {
+            int number = nums[p];
+            if (numberToIndex.containsKey(number)) {
+                return new int[] { numberToIndex.get(number), p };
+            }
+            numberToIndex.put(target - number, p);
+        }
+        return null;
+    }
+}
+```
+
+---
+
+# What I missed
+
+Map 은 `put`이랑 `get` 메서드를 사용한다.

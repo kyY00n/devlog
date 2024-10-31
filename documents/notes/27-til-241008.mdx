@@ -1,0 +1,45 @@
+---
+id: 27
+title: 241008 TIL
+date: 2024-10-08
+tags:
+  - crunch
+  - Leetcode
+---
+
+
+# 웹 보안 수업
+
+- `crunch`: password dictionary를 생성할 수 있는 프로그램
+    - 요런 식
+        
+        ![241031-150355](/posts/27-til-241008/241031-150355.png)
+        
+    - kali linux에 기본으로 탑재돼있다.
+    - `hydra` 나 `john-the-ripper` 같은 공격 툴을 쓰려면 dictionary를 먼저 생성해둬야한다. 사실 dictionary는 알려진 것들이 있어서 인터넷으로 구할 수도 있지만 `crunch` 같은 툴로 직접 생성할 수도 있음
+    - 기존에 제공하는 character set 사용 가능
+        
+        ![241031-150408](/posts/27-til-241008/241031-150408.png)
+        
+- Webgoat
+    - 오랜만입니다. spring으로 만들어졌네
+        - 예전에 실습 기록했던 [레포지토리](https://github.com/kyY00n/webGoat)
+    - 실습하다가 인터셉트 룰에 domain: 127.0.0.1 로 설정해놓고 localhost로 접속해서 하나도 패킷이 안 잡혔다. I am idiot. Aren't I?
+
+# Leetcode
+
+- https://leetcode.com/problems/greatest-common-divisor-of-strings/description/?envType=study-plan-v2&envId=leetcode-75
+    - 이게 왜 easy 인거지
+    - 이렇게 설명하면 쉽게 이해가 된다.
+        
+        > gcd 를 색깔과 모양이 같은 블록으로 생각하면 쉽다.
+        초록색, 길이가 3인 gcd로 이루어진 두 블록뭉치를 연결하는 것은 앞 뒤를 반대로 해도 모양이 동일할 수 밖에 없다.
+        그저 초록색이고 길이가 3인 블록이 그냥 여러 개 있는 거니까.
+        > 
+
+    - Why we could just return GCD of two string lengths
+        - It is the **largest possible length** of a common repeating substring.
+        - Any repeating substring **longer than the GCD wouldn't** divide both strings evenly.
+        
+        → largest 이면서 no longer than 이니까 GCD가 unique answer가 될 수 있는 것이다.
+
