@@ -1,10 +1,10 @@
 ---
-id: 29
+id: 30
 title: 241204 TIL
 date: 2024-12-04
 tags:
-  - `@WebMvcTest`
-  - `@Import`
+  - WebMvcTest
+  - Import
 ---
 
 
@@ -105,9 +105,9 @@ public class SpringHttpSessionConfig {
 public abstract class MockMvcTest {
 ```
 
-# WebMvcConfigurer
+# WebMvcConfigurer?
 
-`@WebMvcTest` 는 웹과 관련한 빈들만 등록된다고 했다. 좀 더 자세히 들여다보면
+`@WebMvcTest` 는 웹과 관련한 빈들만 등록된다고 했다.
 
 그래서 기술적으로는 원하는 클래스가 `WebMvcConfigurer`를 구현하게 해서 `@WebMvcTest`에서 사용할 수 있긴하다.
 
