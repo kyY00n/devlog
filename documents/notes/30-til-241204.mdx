@@ -1,0 +1,149 @@
+---
+id: 30
+title: 241204 TIL
+date: 2024-12-04
+tags:
+  - WebMvcTest
+  - Import
+---
+
+
+현재 어드민 페이지의 권한을 세션으로 관리하기 위해 아이디와 패스워드를 활용한 인터셉터를 만들어 적용해봤다.
+
+기존에 어드민 컨트롤러 테스트가 깨지는 것을 방지하기 위해서, 테스트 컨텍스트에서는 인터셉트가 설정되지 못하도록
+
+다음과 같이 테스트에서 WebConfiguration 클래스를 띄우지 않는 방식을 선택했다.
+
+```java
+@DisplayNameGeneration(DisplayNameGenerator.ReplaceUnderscores.class)
+@ExtendWith({RestDocumentationExtension.class, SpringExtension.class})
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@Sql(scripts = {"classpath:truncate.sql"}, executionPhase = AFTER_TEST_METHOD)
+public abstract class AcceptanceTest {
+
+    /**
+     * 권한 없이 테스트하기 위해 AdminWebConfiguration 임시 제거
+     * TODO: 테스트에 권한 체크 로직 추가
+     */
+    @MockBean
+    protected AdminWebConfiguration adminWebConfiguration;
+
+    // ...
+
+}
+```
+
+테스트 환경에서만 원하는 빈을 제거하기 위해서는 `@MockBean`을 활용할 수 있다는 것을 알게됐다.
+
+
+## Spring Boot 의 `@MockBean`
+
+이 어노테이션은 org.springframework.boot.test.mock.mockito 패키지에 속한다.
+즉, mockito 의 기능이라는 것. assertj 와 같이 mockito도 spring 에 채택돼서 spring boot 에서 사용할 수 있는 것이다.
+
+mockito 의 mock 객체는 기본적으로 아무 동작을 하지 않는다. 만약 리턴타입이 있는 경우 null을 반환한다.
+`@MockBean` 을 사용할 때, 아무런 모킹을 해주지 않으면 (given, when, then..) 기본 동작(default behavior)을 따르게 된다.
+
+나도 아무 동작을 정의해주지 않았으니 스프링이 WebConfiguration 의 메서드를 호출하면 아무 동작도 하지 않을 것이다. (반환값이 있어야하면 null을 반환)
+
+그러면 테스트에서는 인터셉터가 적용되지 않은 상태로 테스트가 진행될 것이고, 기존 테스트가 깨지지 않게 되는 것이다.
+
+
+# `@WebMvcTest` 와 `@Import`
+
+그런데도 기존 몇몇 테스트가 실패하는 문제가 생겨서 살펴봤더니
+
+실패하는 테스트는 모두 @WebMvcTest 를 사용하는 테스트였고 SessionRepository 빈을 찾지 못하는 것이었다.
+
+나는 SessionRepository를 다음 클래스에서 정의해줬다.
+
+```java
+@Configuration
+@EnableSpringHttpSession
+public class SpringHttpSessionConfig {
+
+    @Bean
+    public SessionRepository<MapSession> sessionRepository() {
+        return new MapSessionRepository(new ConcurrentHashMap<>());
+    }
+
+}
+```
+
+자, 이유가 뭐였을까?
+
+바로 `@WebMvcTest`는 웹 레이어 테스트를 위한 어노테이션이라 웹 관련 빈만 등록해주기 때문이다.
+
+> Annotation that can be used for a Spring MVC test that focuses only on Spring MVC components.
+
+`@Configuration` 빈은 자동으로 등록되지 않기 때문에, 따로 조치를 취해줘야 한다.
+
+나는 SpringHttpSessionConfig를 테스트 컨텍스트에 등록하는 방법을 선택했다.
+`@Import` 어노테이션을 `@WebMvcTest`와 사용하면 된다.
+
+```java
+@AutoConfigureRestDocs
+@ExtendWith(SpringExtension.class)
+@SuppressWarnings("NonAsciiCharacters")
+@WebMvcTest( // 웹 관련 빈만 등록해줌.
+
+        // 자세한 설정: 우리는 다음 클래스들에 한해 WebMvcTest를 진행하기 때문에 빈 생성도 제한했다.
+        controllers = { 
+                AdminController.class,
+                AuthController.class,
+                ImageController.class
+        },
+
+        // 어드민 api 인수테스트 시 인터셉터 작동을 비활성화하기 위해 AdminWebConfiguration을 제외
+        excludeFilters = @ComponentScan.Filter(
+                type = FilterType.ASSIGNABLE_TYPE,
+                classes = {AdminWebConfiguration.class}
+        )
+)
+@Import(SpringHttpSessionConfig.class) // WebMvcTest 에서 자동으로 등록되지 않는 빈을 등록해줌.
+@DisplayNameGeneration(DisplayNameGenerator.ReplaceUnderscores.class)
+public abstract class MockMvcTest {
+```
+
+# WebMvcConfigurer?
+
+`@WebMvcTest` 는 웹과 관련한 빈들만 등록된다고 했다.
+
+그래서 기술적으로는 원하는 클래스가 `WebMvcConfigurer`를 구현하게 해서 `@WebMvcTest`에서 사용할 수 있긴하다.
+
+이런 식으로 말이다.
+
+```java
+@Configuration
+@EnableSpringHttpSession
+public class SpringHttpSessionConfig implements WebMvcConfigurer {
+
+    @Bean
+    public SessionRepository<MapSession> sessionRepository() {
+        return new MapSessionRepository(new ConcurrentHashMap<>());
+    }
+
+}
+```
+
+`WebMvcConfigurer` 는 default 메서드로만 이뤄져있어서 아무 구현을 하지 않아도 동작이 된다.
+
+그런데 찝찝하지 않은가?
+
+세션 레포지토리를 생성하는 config 클래스인 SpringHttpSessionConfig 가 WebMvcConfigurer 를 구현하게 하는 것이 이 클래스의 역할에 맞는지
+생각해보면, 그렇지 않다.
+
+
+WebMvcConfigurer 를 보면 다음과 같은 메서드들이 있다.
+
+- addInterceptors: 인터셉터를 추가할 수 있다.
+- addResourceHandlers: 리소스 핸들러를 추가할
+- addCorsMappings: CORS 설정을 추가할 수 있다.
+- configureViewResolvers: 뷰 리졸버를 설정할 수 있다.
+
+등... 이 인터페이스의 목적은 웹 관련 설정을 추가할 수 있게 해주는 것이다.
+
+
+때문에 이 방법과 `@WebMvcTest` 와`@Import` 를 테스트 클래스에서 쓰는 방법 중 어느 것이 더 나을지 생각해봤을 때
+`@Import` 를 사용하는 것이 더 적합하다는 결론에 닿을 수 있었다!
+
