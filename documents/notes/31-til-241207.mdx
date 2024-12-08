@@ -1,0 +1,220 @@
+---
+id: 31
+title: 241207 TIL
+date: 2024-12-07
+tags:
+  - MongoDB Change Streams
+  - Spring Data MongoDB
+---
+
+데이터베이스 마이그레이션 관련 해서 이야기를 했는데,
+유즈케이스는 몽고db -> mysql 로 특정 필드를 마이그레이션하는 것이었다.
+
+기반은 당연히 시간을 들여 만들어야한다.
+
+얘기 나눈 유즈케이스의 경우 nosql 에서 rdb 로 이전하는 것이기 때문에 rdb 성격에 맞게 테이블을 재셜계하고,
+
+데이터를 옮기는 로직을 애플리케이션으로 구현할 수 있을 것 같다.
+
+그런데 데이터가 많다면 이전 작업을 한번에 끝낼 수는 없을 것이다. 그런 경우 배치를 활용하는데
+문제는 배치가 이미 돌아서 이전이 완료된 데이터에 변경사항이 생기는 경우 어떻게 그 변경을 감지하고 다시 적용하느냐는 것이다.
+
+이런 문제는 많은 데이터베이스에서 제공하는 변경 로그를 활용하면 해결할 수 있다.
+
+특히 몽고 DB에는 Change Streams 이라는 기능이 있어서, oplog 라는 변경 로그를 스트림으로 전달받을 수 있다.
+https://www.mongodb.com/docs/manual/changeStreams/
+
+## Change Streams
+
+> Change streams allow applications to access real-time data changes without the prior complexity and risk of manually tailing the oplog.
+> Applications can use change streams to subscribe to all data changes on a single collection, a database, or an entire deployment, and immediately react to them.
+> Because change streams use the aggregation framework, applications can also filter for specific changes or transform the notifications at will.
+
+Change Streams 는 oplog 를 직접 tailing 하는 것보다 간단하고 안전하게 실시간 데이터 변경 사항에 접근할 수 있게 해준다.
+어플리케이션은 단일 컬렉션, 데이터베이스 또는 전체 배포에 대한 모든 데이터 변경 사항을 구독하고 즉시 반응할 수 있다.
+Change Streams 는 집계 프레임워크를 사용하기 때문에, 애플리케이션은 특정 변경 사항을 필터링하거나 알림을 원하는 대로 변환할 수도 있다.
+
+### 동작 원리
+
+> The oplog (operations log) is a special capped collection that keeps a rolling record of all operations that modify the data stored in your databases. If write operations do not modify any data or fail, they do not create oplog entries.
+
+Change Streams 는 `oplog` 라는 로그가 저장되는 컬렉션을 사용하는 원리다.
+원래 `oplog` 는 레플리카셋의 데이터를 동기화하기 위해 사용되는 컬렉션인데, 이를 이용해서 실시간 변경 사항을 감지할 수 있는 기능을 제공하는 것이다.
+
+[oplog 설명 - MongoDB Docs](https://www.mongodb.com/docs/manual/core/replica-set-oplog/#:~:text=The%20oplog%20(operations%20log)%20is,data%20stored%20in%20your%20databases.)
+
+
+### 이야기 나눴던 유즈케이스에 적용
+
+- 어제 얘기했던 용례는, 몽고db 컬렉션 내의 하나의 필드가 변경되는 경우 해당 변경사항을 감지해서 mysql 에 업데이트하는 것이었다.
+- 이를 Change Streams 를 활용해 구현하기 위해서는
+    - 몽고db Collection 에 대한 Change Streams 를 구독하고
+    - 원하는 필드가 변경되는 경우를 필터링해서
+    - mysql 에 업데이트하는 로직을 작성하면 된다.
+
+### Spring Data MongoDB 에서 Change Streams 사용하기
+
+MongoClient를 활용해서 Change Streams 를 구독할 수도 있지만 Spring Data MongoDB 를 사용하는 경우 
+https://docs.spring.io/spring-data/mongodb/reference/mongodb/change-streams.html
+
+Spring Data MongoDB에서 자공하는 Request 빌더를 활용해서 Change Streams 를 구독을 요청할 수 있다.
+
+```java
+ChangeStreamRequest<Document> request = ChangeStreamRequest.builder()
+    .collection("myCollection") // 구독을 원하는 컬렉션 이름을 인자로 제공
+    .filter(Aggregation.match(where("operationType").is("insert"))) // 필터링 조건을 제공
+    .build();
+```
+
+# 적용 시 주의사항
+
+## 성능 문제
+
+
+### 1. Change Stream 필터링은 DB에서 수행된다.
+
+우리가 ChangeStreamRequest 에서 추가해줬던 필터링 과정은 애플리케이션이 아닌 데이터베이스에서 수행된다.
+때문에 필터링에 관련한 조건을 추가할 때 데이터베이스에 영향을 끼칠 수 있다.
+
+특히, oplog 는 컬렉션이지만 인덱스를 걸수 없다. (MongoDB에서 지원하지 않음)
+
+그래서 Change Stream 요청을 받은 데이터베이스는, 조건에 맞는 데이터를 찾기 위해서 전체 데이터를 **순차탐색**해야 한다.
+
+따라서, 스트림 구독 시 과도한 조건으로 필터링을 하면 데이터베이스에 부하를 많이 주게 된다는 점을 알아야한다.
+
+### 2. Change Streams 는 실시간으로 oplog를 스캔한다.
+
+oplog는 원래도 replica db의 동기화를 위해 실시간으로 스캔되는 컬렉션이다.
+그런데 Change Streams 를 구독하면 이 oplog 를 더 자주 스캔하게 되는 것이다.
+
+때문에 너무 많은 Change Streams 를 구독하게 되면 이 또한 성능에 악영향을 준다.
+
+## 그렇다면 어떻게 해야할까?
+
+첫번째 문제였던 필터링 부하를 줄이기 위해서는
+Change Stream의 범위를 너무 좁게 설정하지 말고, 가능하면 컬렉션 단위로 감지하도록 한다.
+
+두번째 문제였던 oplog 스캔을 최소화하기 위해서는
+여러 Change Streams 대신, 단일 Stream에서 이벤트를 수집한 뒤 애플리케이션 레벨에서 추가 필터링을 수행하는 방법을 고려해볼 수 있다.
+
+### 가정해보기: e-commerce 플랫폼 주문 정보 변경 감지
+
+> 보통 이런 이벤트 드리븐 아키텍처에서 이벤트 발행은 애플리케이션에서 하지만, 이 예제에서는 특별히 MongoDB의 기능을 활용해보는 것으로 예를 들어보자.!! (이해를 위한 예시)
+
+주문 정보가 MongoDB에 저장되어있다고 하자.
+
+우리는 주문 정보가 담긴 컬렉션 `orders` 에서 다음 변경사항을 감지하고 Change Streams 를 통해 별도 애플리케이션에서 이후 처리를 하고 싶다.
+
+- 도큐먼트의 `status` 필드가 `"confirmed"` 인 신규 주문은 주문 처리 큐로 전달.
+- 도큐먼트의 `status` 필드가 `"cancelled"` 인 주문은 취소 알림을 발송.
+- 특정 고객 VIP 목록에 포함된 사용자의 이벤트는 별도로 로깅.
+
+---
+
+이 경우 DB의 부하를 최소화하는 관점으로 다음과 같이 구현해볼 수 있다.
+
+
+#### `ChangeStreamRequest` 설정
+
+1. `orders` 컬렉션을 구독
+2. Change Streams 는 insert, update 이벤트만 필터링한다.
+3. 애플리케이션에서 필요한 필드를 필터링한다.
+
+#### 애플리케이션에서 추가 필터링
+
+1. 이벤트를 처리 유형에 따라 분리 -> 신규주문처리/주문취소/고객이벤트
+2. 하나의 ChangeStream만 구독해서 이벤트를 처리하도록 한다.
+
+```java
+@Component
+@RequiredArgsConstructor
+public class OrderChangeStreamService {
+
+    private final MongoTemplate mongoTemplate;
+
+    private final DefaultMessageListenerContainer messageListenerContainer;
+
+    // VIP 고객 ID 목록 (실제로는 캐시/DB에서 관리할 것이다.)
+    private static final Set<String> VIP_CUSTOMERS = new HashSet<>(Set.of("customer1", "customer2", "customer3"));
+
+    public void startOrderChangeStream() {
+        // 최소한의 옵션: insert와 update 이벤트만 필터링
+        ChangeStreamOptions options = ChangeStreamOptions.builder()
+                .filter(new Document("$match", new Document("operationType", new Document("$in", List.of("insert", "update")))))
+                .build();
+
+        // Change Stream 요청 생성
+        ChangeStreamRequest<Document> request = ChangeStreamRequest.builder()
+                .collection("orders")
+                .options(options)
+                .publishTo(createMessageConsumer()) // 이벤트 처리 Consumer 설정
+                .build();
+
+        // Change Stream 구독
+        Subscription subscription = messageListenerContainer.register(request, Document.class);
+
+        System.out.println("Order Change Stream subscription active: " + subscription.isActive());
+    }
+
+    private Consumer<Message<Document, Document>> createMessageConsumer() {
+        return message -> {
+            Document body = message.getBody();
+
+            // 이벤트 분리 처리
+            handleEvent(body);
+        };
+    }
+
+    private void handleEvent(Document event) {
+        String operationType = event.getString("operationType");
+        Document fullDocument = event.get("fullDocument", Document.class);
+
+        if (fullDocument != null) {
+            String status = fullDocument.getString("status");
+            String customerId = fullDocument.getString("customerId");
+
+            if ("confirmed".equals(status)) {
+                processConfirmedOrder(fullDocument);
+            } else if ("canceled".equals(status)) {
+                sendCancellationNotification(fullDocument);
+            }
+
+            if (VIP_CUSTOMERS.contains(customerId)) {
+                logVipCustomerEvent(event);
+            }
+        }
+    }
+
+    private void processConfirmedOrder(Document order) {
+        // 주문 처리 로직 (예: 큐로 전달)
+        System.out.println("Processing confirmed order: " + order.toJson());
+    }
+
+    private void sendCancellationNotification(Document order) {
+        // 취소 알림 발송 로직
+        System.out.println("Sending cancellation notification: " + order.toJson());
+    }
+
+    private void logVipCustomerEvent(Document event) {
+        // VIP 고객 이벤트 로깅
+        System.out.println("Logging VIP customer event: " + event.toJson());
+    }
+}
+```
+
+이런 식으로 해볼 수 있다!
+
+---
+
+# Change Streams 의 한계
+
+Change Streams 는 실시간 데이터 변경을 감지하는데 유용하지만, 몇 가지 한계가 있다.
+
+위에서 설명했듯 `oplog` 컬렉션은 인덱스를 지원하지 않는다. 또한 `oplog`는 크기 제한이 있어 대량의 변경사항이 발생할 경우
+일부 이벤트가 누락될 수 있다. (capped collection 이기 때문에)
+
+이 외에도 이런 한계점이 있다고 한다.
+
+- `oplog` 컬렉션 변경 불가
+- Change Streams는 여러 컬렉션이나 샤드에서 발생한 이벤트간 순서보장 X
+- 리소스 소모와 확장성 제약
