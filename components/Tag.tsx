@@ -34,21 +34,23 @@ const bullshit: {
   },
 };
 
-const colorHash = (name: string) => {
-  const color = colors[(name.length + 1) % colors.length];
+const colorHash = (name?: string) => {
+  const safeName = name ?? '';
+  const color = colors[(safeName.length + 1) % colors.length];
   return bullshit[color];
 };
 
-export const Tag = (tag: string, key: string) => {
+interface TagProps {
+  tag: string;
+}
+
+export const Tag = ({ tag }: TagProps) => {
   const { bg, text, darkGb, darkText } = colorHash(tag);
   return (
-    <>
-      <span
-        className={`flex-shrink-0 font-uhbeeZziba ${bg} ${text} text-s font-light me-2 px-2.5 pt-0.5 rounded-full ${darkGb} ${darkText}`}
-        key={tag}
-      >
-        {tag}
-      </span>
-    </>
+    <span
+      className={`flex-shrink-0 font-uhbeeZziba ${bg} ${text} text-s font-light me-2 px-2.5 pt-0.5 rounded-full ${darkGb} ${darkText}`}
+    >
+      {tag}
+    </span>
   );
 };
