@@ -18,7 +18,9 @@ const PostPreview = ({ id, date, title, des, tags }: PostPreviewProps) => {
       </div>
       <div className="font-medium transition text-gray-600 dark:text-gray-400 mt-1">{des}</div>
       <div className="flex flex-nowrap overflow-x-auto mt-4">
-        {tags?.slice(0, 3).map((tag) => Tag(tag, tag))}
+        {tags?.slice(0, 3).map((tag) => (
+          <Tag key={tag} tag={tag} />
+        ))}
       </div>
     </Link>
   );

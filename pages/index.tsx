@@ -21,8 +21,19 @@ export const getStaticProps: GetStaticProps = async () => {
 
   return {
     props: {
-      post: posts[0],
-      note: notes[0],
+      post: {
+        id: posts[0].id,
+        date: posts[0].date,
+        title: posts[0].title,
+        description: posts[0].description,
+        tags: posts[0].tags,
+      },
+      note: {
+        id: notes[0].id,
+        date: notes[0].date,
+        title: notes[0].title,
+        tags: notes[0].tags,
+      },
     },
   };
 };

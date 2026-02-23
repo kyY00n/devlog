@@ -13,17 +13,17 @@ interface BlogPostProps {
 const NotePreview = ({ id, date, title, des, tags }: BlogPostProps) => {
   return (
     <Link href={`/notes/${id}`} passHref className="w-full my-5 block">
-      {' '}
-      {/* Link 컴포넌트 내부에 a 태그 추가 및 className 적용 */}
       <div className="font-medium text-s transition text-gray-500 dark:text-gray-300">
         {date}
       </div>
       <div className="font-bold text-2xl sm:text-2xl mt-2 transition hover:text-rose-400">
         {title}
       </div>
-      <br></br>
+      <br />
       <div className="whitespace-nowrap overflow-x-auto flex">
-        {tags?.slice(0, 3).map((tag) => Tag(tag, tag))}
+        {tags?.slice(0, 3).map((tag) =>
+          tag ? <Tag key={tag} tag={tag} /> : null
+        )}
       </div>
     </Link>
   );
